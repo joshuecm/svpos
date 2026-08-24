@@ -94,22 +94,39 @@ export function tienePermiso(usuario, permiso) {
 export async function cargarUsuarioCompleto(usuario) {
   if (!usuario) return null;
   try {
-    // Obtener rol_id del usuario si no lo tiene
-    let rolId = usuario.rol_id;
+    // Obtener datos frescos del usuario desde la BD
+    const users = await sb("usuarios","GET",null,`?id=eq.${usuario.id}`);
+    const u = users?.[0] || usuario;
+    
+    let rolId = u.rol_id;
+    
+    // Si no tiene rol_id, buscar por nombre del rol
     if (!rolId) {
-      const u = await sb("usuarios","GET",null,`?id=eq.${usuario.id}`);
-      rolId = u?.[0]?.rol_id;
+      const rolNombreBuscar = u.rol === "super_admin" ? "Super Admin"
+        : u.rol === "admin" ? "Admin"
+        : u.rol === "supervisor" ? "Supervisor"
+        : u.rol === "cajero" ? "Cajero" : null;
+      
+      if (rolNombreBuscar) {
+        const roles = await sb("roles","GET",null,`?nombre=eq.${encodeURIComponent(rolNombreBuscar)}`);
+        if (roles?.[0]) {
+          rolId = roles[0].id;
+          // Actualizar rol_id en la BD para la próxima vez
+          await sb(`usuarios?id=eq.${u.id}`,"PATCH",{rol_id:rolId});
+        }
+      }
     }
+
     if (rolId) {
-      // Obtener nombre del rol
       const roles = await sb("roles","GET",null,`?id=eq.${rolId}`);
       const rolNombre = roles?.[0]?.nombre;
       const permisos = await cargarPermisosRol(rolId, rolNombre);
-      return { ...usuario, rol_id:rolId, _permisos:permisos, _rolNombre:rolNombre };
+      return { ...u, rol_id:rolId, _permisos:permisos, _rolNombre:rolNombre };
     }
-  } catch {}
+  } catch(e) { console.error("Error cargando usuario:", e); }
+  
   // Fallback con permisos estáticos
-  const key = usuario.rol?.toLowerCase() || "cajero";
+  const key = usuario.rol?.toLowerCase().replace(" ","_") || "cajero";
   return { ...usuario, _permisos:PERMISOS_DEFAULT[key] || PERMISOS_DEFAULT.cajero };
 }
 
