@@ -54,10 +54,15 @@ export default function Login({ onLogin }) {
   };
 
   const loginEmail = async () => {
-    if (!email || !password) { setError("Ingresa email y contraseña"); return; }
+    if (!email || !password) { setError("Ingresa usuario/email y contraseña"); return; }
     setLoading(true); setError("");
     try {
-      const users = await sb("usuarios","GET",null,`?email=eq.${encodeURIComponent(email.trim())}&activo=eq.true`);
+      // Buscar por email o por username
+      const isEmail = email.includes("@");
+      const query = isEmail
+        ? `?email=eq.${encodeURIComponent(email.trim())}&activo=eq.true`
+        : `?username=eq.${encodeURIComponent(email.trim().toLowerCase())}&activo=eq.true`;
+      const users = await sb("usuarios","GET",null,query);
       if (!users?.length) { setError("Usuario no encontrado"); setLoading(false); return; }
       const u = users[0];
       if (u.pin !== password) { setError("Contraseña incorrecta"); setLoading(false); return; }
@@ -127,10 +132,10 @@ export default function Login({ onLogin }) {
           {mode==="email"&&(
             <div>
               <div style={{marginBottom:14}}>
-                <label style={{color:C.textMd,fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Email</label>
+                <label style={{color:C.textMd,fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Usuario o Email</label>
                 <input value={email} onChange={e=>setEmail(e.target.value)}
                   onKeyDown={e=>e.key==="Enter"&&loginEmail()}
-                  placeholder="usuario@empresa.com" type="email"
+                  placeholder="usuario o correo@empresa.com"
                   style={{background:C.panel,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"12px 14px",color:C.text,fontSize:14,outline:"none",width:"100%",boxSizing:"border-box"}}/>
               </div>
               <div style={{marginBottom:20}}>
