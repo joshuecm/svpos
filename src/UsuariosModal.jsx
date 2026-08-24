@@ -37,7 +37,7 @@ const ROLE_COLORS = ["#DC2626","#3B82F6","#7C3AED","#16A34A","#D97706","#0891B2"
 const getRoleColor = (i) => ROLE_COLORS[i % ROLE_COLORS.length];
 const getRoleBg    = (color) => color + "15";
 
-const FORM_EMPTY = {nombre:"",email:"",pin:"",rol_id:"",rol:"cajero",sucursal:"Principal",serie_correlativo:"A",activo:true};
+const FORM_EMPTY = {nombre:"",email:"",username:"",pin:"",rol_id:"",rol:"cajero",sucursal:"Principal",serie_correlativo:"A",activo:true};
 
 export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
   const [usuarios, setUsuarios] = useState([]);
@@ -71,7 +71,7 @@ export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
 
   const openEdit = (u) => {
     setForm({
-      nombre: u.nombre, email: u.email||"", pin: u.pin||"",
+      nombre: u.nombre, email: u.email||"", username: u.username||"", pin: u.pin||"",
       rol_id: u.rol_id||"", rol: u.rol||"cajero",
       sucursal: u.sucursal||"Principal",
       serie_correlativo: u.serie_correlativo||"A",
@@ -93,6 +93,7 @@ export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
       const payload = {
         nombre: form.nombre.trim(),
         email:  form.email.trim()||null,
+        username: form.username.trim()||null,
         pin:    form.pin,
         rol:    rolNombre,
         rol_id: form.rol_id ? parseInt(form.rol_id) : null,
@@ -201,6 +202,12 @@ export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
                     <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Nombre completo *</label>
                     <input value={form.nombre} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))}
                       placeholder="Ej: María López" style={IS}/>
+                  </div>
+                  <div>
+                    <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Nombre de usuario</label>
+                    <input value={form.username||""} onChange={e=>setForm(p=>({...p,username:e.target.value.toLowerCase().replace(/\s/g,"")}))}
+                      placeholder="Ej: mlopez, cajero1" style={IS}/>
+                    <div style={{color:C.textSm,fontSize:11,marginTop:3}}>Para iniciar sesión sin email</div>
                   </div>
                   <div>
                     <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Email</label>
