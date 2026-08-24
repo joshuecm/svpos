@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { tienePermiso, ROLES, ROL_COLOR, ROL_BG, ROL_ICON } from "./usuarios.js";
+import UsuariosModal from "./UsuariosModal.jsx";
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
@@ -637,11 +639,14 @@ function CustomerModal({ customers, customer, onSelect, onClose, isMobile }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL
 // ══════════════════════════════════════════════════════════════════════════════
-export default function POS() {
+export default function POS({ usuario, onLogout }) {
   const bp        = useBreakpoint();
   const isMobile  = bp==="mobile";
   const isTablet  = bp==="tablet";
   const isDesktop = bp==="desktop";
+
+  // Shortcut de permisos para este usuario
+  const puedo = (permiso) => tienePermiso(usuario, permiso);
 
   const [products,          setProducts]          = useState([]);
   const [customers,         setCustomers]         = useState([]);
@@ -656,6 +661,7 @@ export default function POS() {
   const [showTicketModal,   setShowTicketModal]   = useState(false);
   const [showConfigModal,   setShowConfigModal]   = useState(false);
   const [showBancosModal,   setShowBancosModal]   = useState(false);
+  const [showUsuariosModal, setShowUsuariosModal] = useState(false);
   const [showSidebar,       setShowSidebar]       = useState(false);
   const [showCart,          setShowCart]          = useState(false);
   const [lastTicket,        setLastTicket]        = useState(null);
@@ -760,14 +766,16 @@ export default function POS() {
   // ── Completar venta desde PayModal
   const completeSale = async (pagos) => {
     try {
-      const correlativo=`V-${String(Date.now()).slice(-6)}`;
+      const serie = usuario?.serie_correlativo || "A";
+      const correlativo=`${serie}-${String(Date.now()).slice(-6)}`;
       const metodoResumen=pagos.map(p=>p.metodo).join("+");
       const totalPagado=pagos.reduce((s,p)=>s+parseFloat(p.monto||0),0);
       const [venta]=await sb("ventas","POST",{
         correlativo, cliente_id:customer?.id||null,
         subtotal:cartBase, impuesto:cartIva, total:cartTotal,
         metodo_pago:metodoResumen, monto_recibido:totalPagado, cambio:0,
-        cajero:"Admin", sucursal:"Principal",
+        cajero: usuario?.nombre || "Admin",
+        sucursal: usuario?.sucursal || "Principal",
       });
       await sb("detalle_ventas","POST",cart.map(item=>({
         venta_id:venta.id, producto_id:item.id, nombre:item.nombre,
@@ -816,23 +824,48 @@ export default function POS() {
           </button>
         ))}
         <div style={{borderTop:`1px solid ${C.border}`,margin:"8px 0"}}/>
-        {[{id:"productos",icon:"📦",label:"Productos"},{id:"inventario",icon:"📊",label:"Inventario"},{id:"clientes",icon:"👤",label:"Clientes"},{id:"reportes",icon:"📈",label:"Reportes"}].map(item=>(
-          <button key={item.id} onClick={()=>notify(`Módulo ${item.label} — próximamente`,"info")} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
-            <span style={{fontSize:18}}>{item.icon}</span>{item.label}
-          </button>
+        {[
+          {id:"productos",  icon:"📦", label:"Productos",  permiso:"catalogo_productos"},
+          {id:"inventario", icon:"📊", label:"Inventario", permiso:"entradas_inventario"},
+          {id:"clientes",   icon:"👤", label:"Clientes",   permiso:"catalogo_clientes"},
+          {id:"reportes",   icon:"📈", label:"Reportes",   permiso:"reportes"},
+        ].map(item=>(
+          puedo(item.permiso)&&(
+            <button key={item.id} onClick={()=>notify(`Módulo ${item.label} — próximamente`,"info")} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+              <span style={{fontSize:18}}>{item.icon}</span>{item.label}
+            </button>
+          )
         ))}
         <div style={{borderTop:`1px solid ${C.border}`,margin:"8px 0"}}/>
-        <button onClick={()=>{setShowBancosModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textMd,fontSize:14,cursor:"pointer",textAlign:"left"}}>
-          <span style={{fontSize:18}}>🏦</span>Bancos
-        </button>
-        <button onClick={()=>{setShowConfigModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",borderRadius:8,border:"none",background:"transparent",color:C.textMd,fontSize:14,cursor:"pointer",textAlign:"left"}}>
-          <span style={{fontSize:18}}>⚙️</span>Configuración
-        </button>
+        {puedo("catalogo_bancos")&&(
+          <button onClick={()=>{setShowBancosModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textMd,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:18}}>🏦</span>Bancos
+          </button>
+        )}
+        {puedo("gestion_usuarios")&&(
+          <button onClick={()=>{setShowUsuariosModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textMd,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:18}}>👥</span>Usuarios
+          </button>
+        )}
+        {puedo("config_iva")&&(
+          <button onClick={()=>{setShowConfigModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",borderRadius:8,border:"none",background:"transparent",color:C.textMd,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:18}}>⚙️</span>Configuración
+          </button>
+        )}
       </nav>
       <div style={{padding:"12px 18px",borderTop:`1px solid ${C.border}`,background:C.panel}}>
         <span style={{fontSize:10,background:ivaBadgeBg,color:ivaBadgeColor,padding:"2px 8px",borderRadius:20,fontWeight:600,display:"inline-block",marginBottom:6}}>{ivaBadgeLabel}</span>
-        <div style={{color:C.textMd,fontSize:12,fontWeight:600}}>Admin</div>
-        <div style={{color:C.textSm,fontSize:11}}>Sucursal Principal · {time}</div>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+          <span style={{fontSize:16}}>{ROL_ICON[usuario?.rol]||"👤"}</span>
+          <div>
+            <div style={{color:C.text,fontSize:12,fontWeight:700}}>{usuario?.nombre||"Admin"}</div>
+            <div style={{color:C.textSm,fontSize:10}}>{ROLES[usuario?.rol]||"Admin"} · {usuario?.sucursal||"Principal"}</div>
+          </div>
+        </div>
+        <div style={{color:C.textSm,fontSize:10,marginBottom:8}}>{time} · <span style={{color:C.green}}>●</span> En línea</div>
+        <button onClick={onLogout} style={{width:"100%",padding:"6px 0",background:C.redBg,border:`1px solid ${C.redBorder}`,borderRadius:6,color:C.red,fontSize:12,fontWeight:600,cursor:"pointer"}}>
+          🚪 Cerrar sesión
+        </button>
       </div>
     </>
   );
@@ -1139,6 +1172,13 @@ export default function POS() {
           bancos={bancos} setBancos={setBancos}
           onClose={()=>setShowBancosModal(false)}
           isMobile={isMobile}
+        />
+      )}
+      {showUsuariosModal&&puedo("gestion_usuarios")&&(
+        <UsuariosModal
+          usuarioActual={usuario}
+          isMobile={isMobile}
+          onClose={()=>setShowUsuariosModal(false)}
         />
       )}
 
