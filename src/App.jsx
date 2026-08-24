@@ -224,7 +224,7 @@ function PayModal({ cartTotal, cartBase, cartIva, hayDesglose, cart, ivaConfig, 
 
   const totalPagado = pagos.reduce((s,p)=>s+parseFloat(p.monto||0),0);
   const pendiente   = cartTotal - totalPagado;
-  const pagoValido  = Math.abs(pendiente) < 0.01;
+  const pagoValido  = totalPagado >= cartTotal - 0.01; // permite monto mayor (el exceso es cambio)
 
   const addPago    = () => setPagos(prev=>[...prev,{metodo:"transfer",monto:"",extras:{}}]);
   const removePago = (i) => setPagos(prev=>prev.filter((_,idx)=>idx!==i));
@@ -259,7 +259,7 @@ function PayModal({ cartTotal, cartBase, cartIva, hayDesglose, cart, ivaConfig, 
       if (p.metodo==="card"&&!p.extras.tipo_tarjeta) { setErr("Selecciona el tipo de tarjeta"); return; }
       if (p.metodo==="credit"&&!customer?.credito) { setErr("El cliente no tiene crédito autorizado"); return; }
     }
-    if (!pagoValido) { setErr("El total pagado no coincide con el total de la venta"); return; }
+    if (!pagoValido) { setErr("El monto ingresado es menor al total de la venta"); return; }
     setSaving(true);
     await onComplete(pagos);
     setSaving(false);
@@ -1211,4 +1211,3 @@ export default function POS({ usuario, onLogout }) {
     </div>
   );
 }
-
