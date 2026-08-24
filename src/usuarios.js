@@ -1,5 +1,119 @@
-// ─── SISTEMA DE PERMISOS ──────────────────────────────────────────────────────
+// ─── SISTEMA DE PERMISOS DINÁMICO ────────────────────────────────────────────
 
+const SUPABASE_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
+const SUPABASE_KEY = "sb_publishable_-BLot_F7KegMytm1jJ9jYg_n0SR2Q-q";
+
+async function sb(table, method="GET", body=null, query="") {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`, {
+    method,
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      "Prefer": method==="POST" ? "return=representation" : "",
+    },
+    body: body ? JSON.stringify(body) : null,
+  });
+  if (!res.ok) { const e = await res.text(); throw new Error(e); }
+  const t = await res.text();
+  return t ? JSON.parse(t) : null;
+}
+
+// ─── PERMISOS POR DEFECTO (fallback si no hay BD) ────────────────────────────
+const PERMISOS_DEFAULT = {
+  super_admin: {
+    pos:true, historial_propio:true, historial_global:true,
+    anular_propio:true, anular_otros:true, abrir_cerrar_caja:true,
+    ver_reporte_caja:true, catalogo_productos:true, catalogo_clientes:true,
+    entradas_inventario:true, reportes:true, gestion_usuarios:true,
+    config_iva:true, catalogo_bancos:true, sucursales:true, config_fel:true,
+    descuentos:true, gestion_roles:true,
+  },
+  admin: {
+    pos:true, historial_propio:true, historial_global:true,
+    anular_propio:true, anular_otros:true, abrir_cerrar_caja:true,
+    ver_reporte_caja:true, catalogo_productos:true, catalogo_clientes:true,
+    entradas_inventario:true, reportes:true, gestion_usuarios:true,
+    config_iva:true, catalogo_bancos:true, sucursales:false, config_fel:false,
+    descuentos:true, gestion_roles:true,
+  },
+  supervisor: {
+    pos:true, historial_propio:true, historial_global:true,
+    anular_propio:true, anular_otros:true, abrir_cerrar_caja:true,
+    ver_reporte_caja:true, catalogo_productos:false, catalogo_clientes:true,
+    entradas_inventario:false, reportes:true, gestion_usuarios:false,
+    config_iva:false, catalogo_bancos:false, sucursales:false, config_fel:false,
+    descuentos:true, gestion_roles:false,
+  },
+  cajero: {
+    pos:true, historial_propio:true, historial_global:false,
+    anular_propio:true, anular_otros:false, abrir_cerrar_caja:true,
+    ver_reporte_caja:false, catalogo_productos:false, catalogo_clientes:false,
+    entradas_inventario:false, reportes:false, gestion_usuarios:false,
+    config_iva:false, catalogo_bancos:false, sucursales:false, config_fel:false,
+    descuentos:false, gestion_roles:false,
+  },
+};
+
+// ─── CACHE DE PERMISOS (evita consultas repetidas) ───────────────────────────
+let permisosCache = {};
+
+export async function cargarPermisosRol(rolId, rolNombre) {
+  if (permisosCache[rolId]) return permisosCache[rolId];
+  try {
+    const perms = await sb("rol_permisos","GET",null,`?rol_id=eq.${rolId}`);
+    if (perms && perms.length > 0) {
+      const mapa = Object.fromEntries(perms.map(p=>[p.permiso, p.valor]));
+      permisosCache[rolId] = mapa;
+      return mapa;
+    }
+  } catch {}
+  // Fallback a permisos por defecto basados en nombre del rol
+  const key = rolNombre?.toLowerCase().replace(" ","_") || "cajero";
+  return PERMISOS_DEFAULT[key] || PERMISOS_DEFAULT.cajero;
+}
+
+export function limpiarCachePermisos() { permisosCache = {}; }
+
+// ─── VERIFICAR PERMISO ────────────────────────────────────────────────────────
+// Para uso síncrono — el usuario debe tener _permisos cargados
+export function tienePermiso(usuario, permiso) {
+  if (!usuario) return false;
+  // Si tiene permisos cargados dinámicamente
+  if (usuario._permisos) return usuario._permisos[permiso] === true;
+  // Permisos personalizados del usuario (override)
+  if (usuario.permisos && typeof usuario.permisos[permiso] === "boolean")
+    return usuario.permisos[permiso];
+  // Fallback a permisos por rol estático
+  const key = usuario.rol?.toLowerCase().replace(" ","_") || "cajero";
+  const base = PERMISOS_DEFAULT[key] || PERMISOS_DEFAULT.cajero;
+  return base[permiso] === true;
+}
+
+// ─── CARGAR USUARIO COMPLETO CON PERMISOS ────────────────────────────────────
+export async function cargarUsuarioCompleto(usuario) {
+  if (!usuario) return null;
+  try {
+    // Obtener rol_id del usuario si no lo tiene
+    let rolId = usuario.rol_id;
+    if (!rolId) {
+      const u = await sb("usuarios","GET",null,`?id=eq.${usuario.id}`);
+      rolId = u?.[0]?.rol_id;
+    }
+    if (rolId) {
+      // Obtener nombre del rol
+      const roles = await sb("roles","GET",null,`?id=eq.${rolId}`);
+      const rolNombre = roles?.[0]?.nombre;
+      const permisos = await cargarPermisosRol(rolId, rolNombre);
+      return { ...usuario, rol_id:rolId, _permisos:permisos, _rolNombre:rolNombre };
+    }
+  } catch {}
+  // Fallback con permisos estáticos
+  const key = usuario.rol?.toLowerCase() || "cajero";
+  return { ...usuario, _permisos:PERMISOS_DEFAULT[key] || PERMISOS_DEFAULT.cajero };
+}
+
+// ─── CONSTANTES UI ────────────────────────────────────────────────────────────
 export const ROLES = {
   super_admin: "Super Admin",
   admin:       "Admin",
@@ -27,102 +141,3 @@ export const ROL_ICON = {
   supervisor:  "👔",
   cajero:      "🧑‍💼",
 };
-
-// ─── PERMISOS POR ROL ─────────────────────────────────────────────────────────
-const PERMISOS_ROL = {
-  super_admin: {
-    pos:                    true,
-    historial_propio:       true,
-    historial_global:       true,
-    anular_propio:          true,
-    anular_otros:           true,
-    abrir_cerrar_caja:      true,
-    ver_reporte_caja:       true,
-    catalogo_productos:     true,
-    catalogo_clientes:      true,
-    entradas_inventario:    true,
-    reportes:               true,
-    gestion_usuarios:       true,
-    config_iva:             true,
-    catalogo_bancos:        true,
-    sucursales:             true,
-    config_fel:             true,
-    descuentos:             true,
-  },
-  admin: {
-    pos:                    true,
-    historial_propio:       true,
-    historial_global:       true,
-    anular_propio:          true,
-    anular_otros:           true,
-    abrir_cerrar_caja:      true,
-    ver_reporte_caja:       true,
-    catalogo_productos:     true,
-    catalogo_clientes:      true,
-    entradas_inventario:    true,
-    reportes:               true,
-    gestion_usuarios:       true,
-    config_iva:             true,
-    catalogo_bancos:        true,
-    sucursales:             false,
-    config_fel:             false,
-    descuentos:             true,
-  },
-  supervisor: {
-    pos:                    true,
-    historial_propio:       true,
-    historial_global:       true,
-    anular_propio:          true,
-    anular_otros:           true,
-    abrir_cerrar_caja:      true,
-    ver_reporte_caja:       true,
-    catalogo_productos:     false,
-    catalogo_clientes:      true,
-    entradas_inventario:    false,
-    reportes:               true,
-    gestion_usuarios:       false,
-    config_iva:             false,
-    catalogo_bancos:        false,
-    sucursales:             false,
-    config_fel:             false,
-    descuentos:             true,
-  },
-  cajero: {
-    pos:                    true,
-    historial_propio:       true,
-    historial_global:       false,
-    anular_propio:          true,  // solo en turno activo
-    anular_otros:           false,
-    abrir_cerrar_caja:      true,
-    ver_reporte_caja:       false,
-    catalogo_productos:     false,
-    catalogo_clientes:      false,
-    entradas_inventario:    false,
-    reportes:               false,
-    gestion_usuarios:       false,
-    config_iva:             false,
-    catalogo_bancos:        false,
-    sucursales:             false,
-    config_fel:             false,
-    descuentos:             false,
-  },
-};
-
-// ─── FUNCIÓN PRINCIPAL DE PERMISOS ───────────────────────────────────────────
-// Combina permisos del rol + overrides del usuario específico
-export function tienePermiso(usuario, permiso) {
-  if (!usuario) return false;
-  const base = PERMISOS_ROL[usuario.rol] || {};
-  const override = usuario.permisos || {};
-  // Override específico del usuario tiene prioridad
-  if (typeof override[permiso] === "boolean") return override[permiso];
-  return base[permiso] === true;
-}
-
-// Retorna todos los permisos combinados de un usuario
-export function getPermisos(usuario) {
-  if (!usuario) return {};
-  const base = PERMISOS_ROL[usuario.rol] || {};
-  const override = usuario.permisos || {};
-  return { ...base, ...override };
-}
