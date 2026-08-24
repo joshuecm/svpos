@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { ROLES, ROL_COLOR, ROL_BG, ROL_ICON, tienePermiso } from "./usuarios.js";
 
 const SUPABASE_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
 const SUPABASE_KEY = "sb_publishable_-BLot_F7KegMytm1jJ9jYg_n0SR2Q-q";
@@ -34,56 +33,51 @@ const BP = {background:"#3B82F6",color:"#fff",border:"none",borderRadius:8,paddi
 const BS = {background:"#fff",color:"#475569",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"10px 16px",fontSize:14,cursor:"pointer"};
 const BD = {background:"#FEF2F2",color:"#DC2626",border:"1.5px solid #FECACA",borderRadius:8,padding:"10px 16px",fontSize:14,cursor:"pointer"};
 
-const PERMISOS_LABELS = {
-  pos:                 "Punto de Venta",
-  historial_propio:    "Ver historial propio",
-  historial_global:    "Ver historial global",
-  anular_propio:       "Anular ventas propias",
-  anular_otros:        "Anular ventas de otros",
-  abrir_cerrar_caja:   "Abrir / Cerrar caja",
-  ver_reporte_caja:    "Ver reporte de caja",
-  catalogo_productos:  "Catálogo de productos",
-  catalogo_clientes:   "Catálogo de clientes",
-  entradas_inventario: "Entradas de inventario",
-  reportes:            "Reportes de ventas",
-  gestion_usuarios:    "Gestión de usuarios",
-  config_iva:          "Configuración de IVA",
-  catalogo_bancos:     "Catálogo de bancos",
-  descuentos:          "Aplicar descuentos",
-};
+const ROLE_COLORS = ["#DC2626","#3B82F6","#7C3AED","#16A34A","#D97706","#0891B2","#059669","#9333EA"];
+const getRoleColor = (i) => ROLE_COLORS[i % ROLE_COLORS.length];
+const getRoleBg    = (color) => color + "15";
 
-const FORM_EMPTY = {nombre:"",email:"",pin:"",rol:"cajero",sucursal:"Principal",serie_correlativo:"A",activo:true,permisos:{}};
+const FORM_EMPTY = {nombre:"",email:"",pin:"",rol_id:"",rol:"cajero",sucursal:"Principal",serie_correlativo:"A",activo:true};
 
 export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
-  const [usuarios,   setUsuarios]   = useState([]);
-  const [form,       setForm]       = useState(FORM_EMPTY);
-  const [editId,     setEditId]     = useState(null);
-  const [saving,     setSaving]     = useState(false);
-  const [error,      setError]      = useState("");
-  const [tab,        setTab]        = useState("lista"); // "lista" | "form"
-  const [showPerms,  setShowPerms]  = useState(false);
+  const [usuarios, setUsuarios] = useState([]);
+  const [roles,    setRoles]    = useState([]);
+  const [form,     setForm]     = useState(FORM_EMPTY);
+  const [editId,   setEditId]   = useState(null);
+  const [saving,   setSaving]   = useState(false);
+  const [error,    setError]    = useState("");
+  const [tab,      setTab]      = useState("lista");
+  const [loading,  setLoading]  = useState(true);
 
-  useEffect(()=>{ loadUsuarios(); },[]);
+  useEffect(() => { loadAll(); }, []);
 
-  const loadUsuarios = async () => {
+  const loadAll = async () => {
+    setLoading(true);
     try {
-      const u = await sb("usuarios","GET",null,"?order=nombre");
+      const [u, r] = await Promise.all([
+        sb("usuarios","GET",null,"?order=nombre"),
+        sb("roles","GET",null,"?activo=eq.true&order=id"),
+      ]);
       setUsuarios(u||[]);
-    } catch(e) { setError("Error cargando usuarios"); }
+      setRoles(r||[]);
+    } catch { setError("Error cargando datos"); }
+    setLoading(false);
   };
 
   const openNew = () => {
-    setForm(FORM_EMPTY); setEditId(null); setError(""); setShowPerms(false); setTab("form");
+    setForm({...FORM_EMPTY, rol_id: roles[0]?.id||""});
+    setEditId(null); setError(""); setTab("form");
   };
 
   const openEdit = (u) => {
     setForm({
-      nombre:u.nombre, email:u.email||"", pin:u.pin||"",
-      rol:u.rol, sucursal:u.sucursal||"Principal",
-      serie_correlativo:u.serie_correlativo||"A",
-      activo:u.activo, permisos:u.permisos||{},
+      nombre: u.nombre, email: u.email||"", pin: u.pin||"",
+      rol_id: u.rol_id||"", rol: u.rol||"cajero",
+      sucursal: u.sucursal||"Principal",
+      serie_correlativo: u.serie_correlativo||"A",
+      activo: u.activo,
     });
-    setEditId(u.id); setError(""); setShowPerms(false); setTab("form");
+    setEditId(u.id); setError(""); setTab("form");
   };
 
   const save = async () => {
@@ -92,54 +86,45 @@ export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
     if (!/^\d{4}$/.test(form.pin)) { setError("El PIN solo puede contener números"); return; }
     setSaving(true); setError("");
     try {
+      // Obtener nombre del rol seleccionado para mantener compatibilidad
+      const rolSeleccionado = roles.find(r => String(r.id) === String(form.rol_id));
+      const rolNombre = rolSeleccionado?.nombre?.toLowerCase().replace(" ","_") || "cajero";
+
       const payload = {
         nombre: form.nombre.trim(),
         email:  form.email.trim()||null,
         pin:    form.pin,
-        rol:    form.rol,
+        rol:    rolNombre,
+        rol_id: form.rol_id ? parseInt(form.rol_id) : null,
         sucursal: form.sucursal,
         serie_correlativo: form.serie_correlativo.toUpperCase(),
         activo: form.activo,
-        permisos: form.permisos,
       };
       if (editId) {
         await sb(`usuarios?id=eq.${editId}`,"PATCH",payload);
       } else {
         await sb("usuarios","POST",payload);
       }
-      await loadUsuarios();
+      await loadAll();
       setTab("lista"); setEditId(null); setForm(FORM_EMPTY);
     } catch(e) { setError("Error: "+e.message); }
     setSaving(false);
   };
 
   const toggleActivo = async (u) => {
-    if (u.rol==="super_admin") { setError("No puedes desactivar al Super Admin"); return; }
+    if (u.rol==="super_admin"||u.id===usuarioActual?.id) return;
     await sb(`usuarios?id=eq.${u.id}`,"PATCH",{activo:!u.activo});
-    await loadUsuarios();
+    await loadAll();
   };
 
-  const togglePermiso = (key) => {
-    setForm(prev=>{
-      const current = prev.permisos[key];
-      const newPermisos = {...prev.permisos};
-      if (current === undefined) {
-        // Agregar override contrario al rol
-        newPermisos[key] = !tienePermiso({rol:prev.rol,permisos:{}},key);
-      } else {
-        // Quitar override — vuelve al default del rol
-        delete newPermisos[key];
-      }
-      return {...prev, permisos:newPermisos};
-    });
-  };
+  const getRolUsuario = (u) => roles.find(r => r.id === u.rol_id);
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,backdropFilter:"blur(3px)"}}>
-      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",width:isMobile?"95vw":"600px",maxHeight:"92vh",display:"flex",flexDirection:"column"}}>
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",width:isMobile?"95vw":"580px",maxHeight:"92vh",display:"flex",flexDirection:"column"}}>
 
         {/* Header */}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"20px 24px",borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 24px",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             {tab==="form"&&(
               <button onClick={()=>{setTab("lista");setEditId(null);setForm(FORM_EMPTY);setError("");}}
@@ -163,38 +148,43 @@ export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
                 <button onClick={openNew} style={{...BP,padding:"8px 16px",fontSize:13}}>➕ Nuevo usuario</button>
               </div>
               {error&&<div style={{background:C.redBg,border:`1px solid ${C.redBorder}`,borderRadius:8,padding:"8px 14px",color:C.red,fontSize:13,marginBottom:14}}>{error}</div>}
-              {usuarios.length===0?(
+              {loading?(
+                <div style={{textAlign:"center",color:C.textSm,padding:40}}>Cargando...</div>
+              ):usuarios.length===0?(
                 <div style={{textAlign:"center",color:C.textSm,padding:40}}>
                   <div style={{fontSize:40,marginBottom:12}}>👥</div>
                   <div>No hay usuarios registrados</div>
                 </div>
-              ):usuarios.map(u=>(
-                <div key={u.id} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",marginBottom:10,background:u.activo?C.card:C.panel,border:`1px solid ${u.activo?C.border:C.border}`,borderRadius:10,opacity:u.activo?1:0.6}}>
-                  <div style={{width:44,height:44,borderRadius:"50%",background:ROL_BG[u.rol]||C.blueBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>
-                    {ROL_ICON[u.rol]||"👤"}
-                  </div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                      <span style={{color:C.text,fontWeight:700,fontSize:14}}>{u.nombre}</span>
-                      <span style={{fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,background:ROL_BG[u.rol]||C.blueBg,color:ROL_COLOR[u.rol]||C.blue}}>
-                        {ROLES[u.rol]||u.rol}
-                      </span>
-                      {!u.activo&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,background:C.redBg,color:C.red}}>Inactivo</span>}
+              ):usuarios.map((u,i)=>{
+                const rol = getRolUsuario(u);
+                const rolColor = getRoleColor(roles.findIndex(r=>r.id===u.rol_id));
+                return(
+                  <div key={u.id} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",marginBottom:10,background:u.activo?C.card:C.panel,border:`1px solid ${C.border}`,borderRadius:10,opacity:u.activo?1:0.6}}>
+                    <div style={{width:44,height:44,borderRadius:"50%",background:getRoleBg(rolColor),display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,border:`2px solid ${rolColor}20`}}>
+                      {u.rol==="super_admin"?"👑":u.rol==="admin"?"🛡️":u.rol==="supervisor"?"👔":"🧑‍💼"}
                     </div>
-                    <div style={{color:C.textSm,fontSize:12,marginTop:2}}>
-                      {u.sucursal} · Serie: {u.serie_correlativo} {u.email?`· ${u.email}`:""}
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:2}}>
+                        <span style={{color:C.text,fontWeight:700,fontSize:14}}>{u.nombre}</span>
+                        <span style={{fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,background:getRoleBg(rolColor),color:rolColor}}>
+                          {rol?.nombre||u.rol||"Sin rol"}
+                        </span>
+                        {!u.activo&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,background:C.redBg,color:C.red}}>Inactivo</span>}
+                        {u.id===usuarioActual?.id&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,background:C.greenBg,color:C.green}}>Tú</span>}
+                      </div>
+                      <div style={{color:C.textSm,fontSize:11}}>{u.sucursal||"Principal"} · Serie: {u.serie_correlativo||"A"}{u.email?` · ${u.email}`:""}</div>
+                    </div>
+                    <div style={{display:"flex",gap:6,flexShrink:0}}>
+                      <button onClick={()=>openEdit(u)} style={{...BS,padding:"6px 10px",fontSize:12}}>✏️</button>
+                      {u.id!==usuarioActual?.id&&u.rol!=="super_admin"&&(
+                        <button onClick={()=>toggleActivo(u)} style={{padding:"6px 10px",fontSize:12,borderRadius:8,border:`1.5px solid ${C.border}`,cursor:"pointer",background:u.activo?C.amberBg:C.greenBg,color:u.activo?C.amber:C.green}}>
+                          {u.activo?"⏸":"▶️"}
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div style={{display:"flex",gap:6,flexShrink:0}}>
-                    <button onClick={()=>openEdit(u)} style={{...BS,padding:"6px 10px",fontSize:12}}>✏️</button>
-                    {u.id!==usuarioActual?.id&&(
-                      <button onClick={()=>toggleActivo(u)} style={{padding:"6px 10px",fontSize:12,borderRadius:8,border:`1.5px solid ${C.border}`,cursor:"pointer",background:u.activo?C.amberBg:C.greenBg,color:u.activo?C.amber:C.green}}>
-                        {u.activo?"⏸":"▶️"}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </>
           )}
 
@@ -231,100 +221,54 @@ export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
 
                 {/* Serie correlativo */}
                 <div style={{marginBottom:12}}>
-                  <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>
-                    Serie de correlativo (letra que identifica al cajero)
-                  </label>
-                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Serie de correlativo</label>
+                  <div style={{display:"flex",gap:10,alignItems:"center"}}>
                     <input value={form.serie_correlativo} onChange={e=>setForm(p=>({...p,serie_correlativo:e.target.value.toUpperCase().slice(0,2)}))}
                       placeholder="A" maxLength={2}
-                      style={{...IS,width:80,textAlign:"center",fontSize:18,fontWeight:700}}/>
+                      style={{...IS,width:72,textAlign:"center",fontSize:18,fontWeight:700}}/>
                     <div style={{color:C.textSm,fontSize:12}}>
-                      Las ventas se identificarán como:<br/>
-                      <strong style={{color:C.blue}}>{form.serie_correlativo||"A"}-000001, {form.serie_correlativo||"A"}-000002...</strong>
+                      Ventas: <strong style={{color:C.blue}}>{form.serie_correlativo||"A"}-000001, {form.serie_correlativo||"A"}-000002...</strong>
                     </div>
                   </div>
                 </div>
 
-                {/* Activo */}
+                {/* Toggle activo */}
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <button onClick={()=>setForm(p=>({...p,activo:!p.activo}))} style={{
-                    width:44,height:24,borderRadius:12,border:"none",cursor:"pointer",position:"relative",
-                    background:form.activo?C.blue:C.border,transition:"all 0.2s"
-                  }}>
+                  <button onClick={()=>setForm(p=>({...p,activo:!p.activo}))} style={{width:44,height:24,borderRadius:12,border:"none",cursor:"pointer",position:"relative",background:form.activo?C.blue:C.border,transition:"all 0.2s"}}>
                     <div style={{position:"absolute",top:2,left:form.activo?22:2,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"all 0.2s"}}/>
                   </button>
                   <span style={{color:C.textMd,fontSize:13}}>{form.activo?"Usuario activo":"Usuario inactivo"}</span>
                 </div>
               </div>
 
-              {/* Rol */}
-              <div style={{background:C.panel,borderRadius:10,padding:16,marginBottom:16,border:`1px solid ${C.border}`}}>
-                <div style={{color:C.textMd,fontSize:13,fontWeight:600,marginBottom:12}}>Rol</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  {Object.entries(ROLES).map(([key,label])=>{
-                    // Cajero no puede crear super_admin
-                    if(key==="super_admin"&&usuarioActual?.rol!=="super_admin") return null;
-                    const sel = form.rol===key;
-                    return(
-                      <button key={key} onClick={()=>setForm(p=>({...p,rol:key,permisos:{}}))} style={{
-                        padding:"12px",borderRadius:10,cursor:"pointer",textAlign:"left",
-                        border:`2px solid ${sel?ROL_COLOR[key]:C.border}`,
-                        background:sel?ROL_BG[key]:C.card,
-                      }}>
-                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                          <span style={{fontSize:18}}>{ROL_ICON[key]}</span>
-                          <span style={{color:sel?ROL_COLOR[key]:C.text,fontWeight:700,fontSize:13}}>{label}</span>
-                        </div>
-                        <div style={{color:C.textSm,fontSize:11}}>
-                          {key==="super_admin"?"Acceso total al sistema":
-                           key==="admin"?"Gestión completa sin config crítica":
-                           key==="supervisor"?"Operación + reportes + anulaciones":
-                           "Solo punto de venta"}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Permisos personalizados */}
+              {/* Rol dinámico */}
               <div style={{background:C.panel,borderRadius:10,padding:16,marginBottom:20,border:`1px solid ${C.border}`}}>
-                <button onClick={()=>setShowPerms(p=>!p)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",padding:0}}>
-                  <div style={{color:C.textMd,fontSize:13,fontWeight:600}}>⚡ Permisos personalizados</div>
-                  <span style={{color:C.textSm,fontSize:18}}>{showPerms?"▲":"▼"}</span>
-                </button>
-                {!showPerms&&(
-                  <div style={{color:C.textSm,fontSize:12,marginTop:6}}>
-                    Basado en rol <strong>{ROLES[form.rol]}</strong> · Expande para personalizar permisos individuales
+                <div style={{color:C.textMd,fontSize:13,fontWeight:600,marginBottom:12}}>Rol asignado</div>
+                {roles.length===0?(
+                  <div style={{color:C.textSm,fontSize:13,textAlign:"center",padding:20}}>
+                    No hay roles disponibles. Crea roles primero en <strong>Configuración → Roles</strong>.
                   </div>
-                )}
-                {showPerms&&(
-                  <div style={{marginTop:12}}>
-                    <div style={{color:C.textSm,fontSize:11,marginBottom:10}}>
-                      Los permisos marcados en gris son del rol. Los que cambies aquí sobreescriben el rol para este usuario.
-                    </div>
-                    {Object.entries(PERMISOS_LABELS).map(([key,label])=>{
-                      const fromRol   = tienePermiso({rol:form.rol,permisos:{}},key);
-                      const hasOverride = typeof form.permisos[key]==="boolean";
-                      const effective = hasOverride ? form.permisos[key] : fromRol;
+                ):(
+                  <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:8}}>
+                    {roles.map((r,i)=>{
+                      const color = getRoleColor(i);
+                      const sel = String(form.rol_id)===String(r.id);
                       return(
-                        <div key={key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
-                          <div>
-                            <span style={{color:C.text,fontSize:13}}>{label}</span>
-                            {hasOverride&&<span style={{color:C.amber,fontSize:10,marginLeft:6,fontWeight:600}}>personalizado</span>}
+                        <button key={r.id} onClick={()=>setForm(p=>({...p,rol_id:r.id}))} style={{
+                          padding:"12px",borderRadius:10,cursor:"pointer",textAlign:"left",
+                          border:`2px solid ${sel?color:C.border}`,
+                          background:sel?getRoleBg(color):C.card,
+                          transition:"all 0.15s",
+                        }}>
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                            <div style={{width:28,height:28,borderRadius:6,background:color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>
+                              {r.es_sistema?"🔒":"🎭"}
+                            </div>
+                            <span style={{color:sel?color:C.text,fontWeight:700,fontSize:13}}>{r.nombre}</span>
                           </div>
-                          <div style={{display:"flex",alignItems:"center",gap:8}}>
-                            {hasOverride&&(
-                              <button onClick={()=>togglePermiso(key)} style={{color:C.textSm,background:"none",border:"none",cursor:"pointer",fontSize:11}}>reset</button>
-                            )}
-                            <button onClick={()=>togglePermiso(key)} style={{
-                              width:40,height:22,borderRadius:11,border:"none",cursor:"pointer",position:"relative",
-                              background:effective?C.blue:C.border,transition:"all 0.2s"
-                            }}>
-                              <div style={{position:"absolute",top:2,left:effective?20:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"all 0.2s"}}/>
-                            </button>
-                          </div>
-                        </div>
+                          {r.descripcion&&<div style={{color:C.textSm,fontSize:11}}>{r.descripcion}</div>}
+                          {r.es_sistema&&<div style={{color:C.amber,fontSize:10,marginTop:4,fontWeight:600}}>Rol del sistema</div>}
+                        </button>
                       );
                     })}
                   </div>
