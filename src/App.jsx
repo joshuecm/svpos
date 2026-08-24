@@ -15,10 +15,7 @@ async function sb(table, method = "GET", body = null, query = "") {
     },
     body: body ? JSON.stringify(body) : null,
   });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err);
-  }
+  if (!res.ok) { const err = await res.text(); throw new Error(err); }
   const text = await res.text();
   return text ? JSON.parse(text) : null;
 }
@@ -26,8 +23,7 @@ async function sb(table, method = "GET", body = null, query = "") {
 // ─── PALETA ───────────────────────────────────────────────────────────────────
 const C = {
   bg: "#F0F2F5", sidebar: "#FFFFFF", card: "#FFFFFF", panel: "#F8F9FB",
-  border: "#E2E8F0", borderMd: "#CBD5E1",
-  text: "#1E293B", textMd: "#475569", textSm: "#94A3B8",
+  border: "#E2E8F0", text: "#1E293B", textMd: "#475569", textSm: "#94A3B8",
   blue: "#3B82F6", blueBg: "#EFF6FF", blueBorder: "#BFDBFE",
   green: "#16A34A", greenBg: "#F0FDF4",
   red: "#DC2626", redBg: "#FEF2F2", redBorder: "#FECACA",
@@ -45,10 +41,31 @@ const PAYMENT_METHODS = [
 const fmt = (n) => `Q ${Number(n || 0).toFixed(2)}`;
 const nowT = () => new Date().toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" });
 
-function calcLine(item) {
-  const subtotal = item.precio * item.qty;
-  const tax = subtotal * (parseFloat(item.impuesto) || 0);
-  return { subtotal, tax, total: subtotal + tax };
+// ─── CONFIG IVA POR DEFECTO ───────────────────────────────────────────────────
+const DEFAULT_IVA = {
+  porcentaje: 12,          // % del IVA
+  incluido: true,          // true = IVA incluido en precio (Guatemala), false = se agrega encima
+};
+
+// ─── CÁLCULO DE LÍNEA CON LÓGICA IVA ─────────────────────────────────────────
+// ivaConfig: { porcentaje, incluido }
+// Si incluido=true:  total = precio*qty (el IVA ya está dentro, solo se desglosa)
+//   ivaMonto = total - (total / (1 + tasa))
+//   base     = total / (1 + tasa)
+// Si incluido=false: total = precio*qty + impuesto (se suma encima)
+//   base     = precio*qty
+//   ivaMonto = base * tasa
+function calcLine(item, ivaConfig) {
+  const tasa = (ivaConfig.porcentaje / 100) * (parseFloat(item.impuesto) > 0 ? 1 : 0);
+  const bruto = item.precio * item.qty;
+  if (ivaConfig.incluido) {
+    const base = tasa > 0 ? bruto / (1 + tasa) : bruto;
+    const ivaMonto = bruto - base;
+    return { base, ivaMonto, total: bruto };
+  } else {
+    const ivaMonto = bruto * tasa;
+    return { base: bruto, ivaMonto, total: bruto + ivaMonto };
+  }
 }
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
@@ -62,51 +79,55 @@ const modalStyle = { background: C.card, border: `1px solid ${C.border}`, border
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 export default function POS() {
-  const [products, setProducts] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [cart, setCart] = useState([]);
-  const [customer, setCustomer] = useState(null);
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("Todas");
-  const [activeTab, setActiveTab] = useState("pos");
-  const [showPayModal, setShowPayModal] = useState(false);
+  const [products,          setProducts]          = useState([]);
+  const [customers,         setCustomers]         = useState([]);
+  const [cart,              setCart]              = useState([]);
+  const [customer,          setCustomer]          = useState(null);
+  const [search,            setSearch]            = useState("");
+  const [category,          setCategory]          = useState("Todas");
+  const [activeTab,         setActiveTab]         = useState("pos");
+  const [showPayModal,      setShowPayModal]      = useState(false);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
-  const [showTicketModal, setShowTicketModal] = useState(false);
-  const [lastTicket, setLastTicket] = useState(null);
-  const [payMethod, setPayMethod] = useState("cash");
-  const [cashReceived, setCashReceived] = useState("");
-  const [salesHistory, setSalesHistory] = useState([]);
-  const [cajaInfo, setCajaInfo] = useState(null);
-  const [holdSales, setHoldSales] = useState([]);
-  const [time, setTime] = useState(nowT());
-  const [notification, setNotification] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [showTicketModal,   setShowTicketModal]   = useState(false);
+  const [showConfigModal,   setShowConfigModal]   = useState(false);
+  const [lastTicket,        setLastTicket]        = useState(null);
+  const [payMethod,         setPayMethod]         = useState("cash");
+  const [cashReceived,      setCashReceived]      = useState("");
+  const [salesHistory,      setSalesHistory]      = useState([]);
+  const [cajaInfo,          setCajaInfo]          = useState(null);
+  const [holdSales,         setHoldSales]         = useState([]);
+  const [time,              setTime]              = useState(nowT());
+  const [notification,      setNotification]      = useState(null);
+  const [loading,           setLoading]           = useState(true);
+  const [saving,            setSaving]            = useState(false);
 
-  // ── Load data on mount
-  useEffect(() => {
-    loadAll();
-    const t = setInterval(() => setTime(nowT()), 30000);
-    return () => clearInterval(t);
-  }, []);
+  // ── Config IVA (persistida en localStorage)
+  const [ivaConfig, setIvaConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem("svpos_iva");
+      return saved ? JSON.parse(saved) : DEFAULT_IVA;
+    } catch { return DEFAULT_IVA; }
+  });
+  // Config temporal en modal
+  const [ivaTemp, setIvaTemp] = useState(ivaConfig);
+
+  useEffect(() => { loadAll(); const t = setInterval(() => setTime(nowT()), 30000); return () => clearInterval(t); }, []);
 
   async function loadAll() {
     setLoading(true);
     try {
       const [prods, clients, ventas, caja] = await Promise.all([
         sb("productos", "GET", null, "?activo=eq.true&order=categoria,nombre"),
-        sb("clientes", "GET", null, "?activo=eq.true&order=nombre"),
-        sb("ventas", "GET", null, "?order=created_at.desc&limit=50"),
-        sb("caja", "GET", null, "?order=id.desc&limit=1"),
+        sb("clientes",  "GET", null, "?activo=eq.true&order=nombre"),
+        sb("ventas",    "GET", null, "?order=created_at.desc&limit=50"),
+        sb("caja",      "GET", null, "?order=id.desc&limit=1"),
       ]);
       setProducts(prods || []);
       setCustomers(clients || []);
       setCustomer(clients?.[0] || null);
       setSalesHistory(ventas || []);
       setCajaInfo(caja?.[0] || null);
-    } catch (e) {
-      notify("Error conectando a la base de datos", "error");
-    }
+    } catch { notify("Error conectando a la base de datos", "error"); }
     setLoading(false);
   }
 
@@ -115,7 +136,13 @@ export default function POS() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // ── Categories from real products
+  const saveIvaConfig = () => {
+    setIvaConfig(ivaTemp);
+    localStorage.setItem("svpos_iva", JSON.stringify(ivaTemp));
+    setShowConfigModal(false);
+    notify("Configuración de IVA guardada");
+  };
+
   const categories = ["Todas", ...new Set(products.map(p => p.categoria))];
 
   const filtered = products.filter(p => {
@@ -127,10 +154,12 @@ export default function POS() {
     return ms && mc;
   });
 
-  const cartSubtotal = cart.reduce((s, i) => s + calcLine(i).subtotal, 0);
-  const cartTax = cart.reduce((s, i) => s + calcLine(i).tax, 0);
-  const cartTotal = cartSubtotal + cartTax;
-  const cashChange = parseFloat(cashReceived || 0) - cartTotal;
+  // ── Totales del carrito usando ivaConfig
+  const cartLines    = cart.map(i => calcLine(i, ivaConfig));
+  const cartBase     = cartLines.reduce((s, l) => s + l.base, 0);
+  const cartIva      = cartLines.reduce((s, l) => s + l.ivaMonto, 0);
+  const cartTotal    = cartLines.reduce((s, l) => s + l.total, 0);
+  const cashChange   = parseFloat(cashReceived || 0) - cartTotal;
 
   const addToCart = (p) => {
     if (p.stock <= 0) { notify("Sin stock disponible", "error"); return; }
@@ -168,75 +197,166 @@ export default function POS() {
     setHoldSales(prev => prev.filter(s => s.id !== h.id));
   };
 
-  // ── Complete sale → save to Supabase
   const completeSale = async () => {
     if (payMethod === "cash" && parseFloat(cashReceived || 0) < cartTotal) { notify("Monto insuficiente", "error"); return; }
     if (payMethod === "credit" && !customer?.credito) { notify("Cliente sin crédito autorizado", "error"); return; }
-
     setSaving(true);
     try {
-      const correlativo = `V-${Date.now()}`;
-
-      // 1. Insert venta
+      const correlativo = `V-${String(Date.now()).slice(-6)}`;
       const [venta] = await sb("ventas", "POST", {
         correlativo,
         cliente_id: customer?.id || null,
-        subtotal: cartSubtotal,
-        impuesto: cartTax,
+        subtotal: cartBase,
+        impuesto: cartIva,
         total: cartTotal,
         metodo_pago: payMethod,
         monto_recibido: payMethod === "cash" ? parseFloat(cashReceived) : cartTotal,
         cambio: payMethod === "cash" ? cashChange : 0,
-        cajero: "Admin",
-        sucursal: "Principal",
+        cajero: "Admin", sucursal: "Principal",
       });
-
-      // 2. Insert detalles
       await sb("detalle_ventas", "POST", cart.map(item => ({
-        venta_id: venta.id,
-        producto_id: item.id,
-        nombre: item.nombre,
-        cantidad: item.qty,
-        precio: item.precio,
-        impuesto: item.impuesto,
-        subtotal: calcLine(item).total,
+        venta_id: venta.id, producto_id: item.id, nombre: item.nombre,
+        cantidad: item.qty, precio: item.precio, impuesto: item.impuesto,
+        subtotal: calcLine(item, ivaConfig).total,
       })));
-
-      // 3. Update stock for each product
       for (const item of cart) {
         await sb(`productos?id=eq.${item.id}`, "PATCH", { stock: item.stock - item.qty });
       }
-
-      // 4. Update products in state
       setProducts(prev => prev.map(p => {
         const inCart = cart.find(i => i.id === p.id);
         return inCart ? { ...p, stock: p.stock - inCart.qty } : p;
       }));
-
       const ticket = {
-        number: venta.id,
-        correlativo,
-        date: new Date().toLocaleString("es-GT"),
-        customer,
-        items: [...cart],
-        subtotal: cartSubtotal,
-        tax: cartTax,
-        total: cartTotal,
+        correlativo, date: new Date().toLocaleString("es-GT"),
+        customer, items: [...cart],
+        base: cartBase, iva: cartIva, total: cartTotal,
+        ivaConfig: { ...ivaConfig },
         payMethod,
         cashReceived: payMethod === "cash" ? parseFloat(cashReceived) : cartTotal,
         change: payMethod === "cash" ? cashChange : 0,
       };
-
       setSalesHistory(prev => [venta, ...prev]);
       setLastTicket(ticket);
       setCart([]); setCustomer(customers[0]); setCashReceived(""); setPayMethod("cash");
       setShowPayModal(false); setShowTicketModal(true);
       notify(`✓ Venta guardada · ${fmt(cartTotal)}`);
-    } catch (e) {
-      notify("Error al guardar la venta: " + e.message, "error");
-    }
+    } catch (e) { notify("Error al guardar: " + e.message, "error"); }
     setSaving(false);
   };
+
+  // ─── CONFIG MODAL ─────────────────────────────────────────────────────────────
+  const ConfigModal = () => (
+    <div style={overlayStyle}>
+      <div style={{ ...modalStyle, width: 440 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <h2 style={{ color: C.text, fontSize: 18, fontWeight: 700 }}>⚙️ Configuración de IVA</h2>
+          <button onClick={() => setShowConfigModal(false)} style={btnClose}>✕</button>
+        </div>
+
+        {/* Porcentaje */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ color: C.textMd, fontSize: 13, fontWeight: 600, display: "block", marginBottom: 8 }}>
+            Porcentaje de IVA
+          </label>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <input
+              type="number" min="0" max="100" step="0.1"
+              value={ivaTemp.porcentaje}
+              onChange={e => setIvaTemp(p => ({ ...p, porcentaje: parseFloat(e.target.value) || 0 }))}
+              style={{ ...inputStyle, width: 100, fontSize: 20, fontWeight: 700, textAlign: "center" }}
+            />
+            <span style={{ color: C.textMd, fontSize: 24, fontWeight: 700 }}>%</span>
+            <div style={{ color: C.textSm, fontSize: 12, flex: 1 }}>
+              Guatemala: 12%<br />Valor estándar en la mayoría de países LATAM
+            </div>
+          </div>
+        </div>
+
+        {/* Modo IVA */}
+        <div style={{ marginBottom: 24 }}>
+          <label style={{ color: C.textMd, fontSize: 13, fontWeight: 600, display: "block", marginBottom: 10 }}>
+            ¿Cómo se maneja el IVA?
+          </label>
+
+          {/* Opción 1: Incluido */}
+          <button onClick={() => setIvaTemp(p => ({ ...p, incluido: true }))} style={{
+            width: "100%", padding: 16, marginBottom: 8, borderRadius: 10, cursor: "pointer", textAlign: "left",
+            border: `2px solid ${ivaTemp.incluido ? C.blue : C.border}`,
+            background: ivaTemp.incluido ? C.blueBg : C.panel,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{
+                width: 18, height: 18, borderRadius: "50%", border: `2px solid ${ivaTemp.incluido ? C.blue : C.border}`,
+                background: ivaTemp.incluido ? C.blue : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center"
+              }}>
+                {ivaTemp.incluido && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
+              </div>
+              <div>
+                <div style={{ color: C.text, fontWeight: 600, fontSize: 14 }}>IVA incluido en el precio 🇬🇹</div>
+                <div style={{ color: C.textMd, fontSize: 12, marginTop: 2 }}>
+                  El precio ya incluye el IVA. Se desglosa en el ticket pero <strong>NO se suma</strong> al total.<br />
+                  <span style={{ color: C.green }}>Ejemplo: Producto Q 11.20 → Base Q 10.00 + IVA Q 1.20 = Total Q 11.20</span>
+                </div>
+              </div>
+            </div>
+          </button>
+
+          {/* Opción 2: Se agrega */}
+          <button onClick={() => setIvaTemp(p => ({ ...p, incluido: false }))} style={{
+            width: "100%", padding: 16, borderRadius: 10, cursor: "pointer", textAlign: "left",
+            border: `2px solid ${!ivaTemp.incluido ? C.blue : C.border}`,
+            background: !ivaTemp.incluido ? C.blueBg : C.panel,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{
+                width: 18, height: 18, borderRadius: "50%", border: `2px solid ${!ivaTemp.incluido ? C.blue : C.border}`,
+                background: !ivaTemp.incluido ? C.blue : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center"
+              }}>
+                {!ivaTemp.incluido && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
+              </div>
+              <div>
+                <div style={{ color: C.text, fontWeight: 600, fontSize: 14 }}>IVA se agrega al precio</div>
+                <div style={{ color: C.textMd, fontSize: 12, marginTop: 2 }}>
+                  El IVA se suma encima del precio del producto.<br />
+                  <span style={{ color: C.amber }}>Ejemplo: Producto Q 10.00 + IVA Q 1.20 = Total Q 11.20</span>
+                </div>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        {/* Preview */}
+        <div style={{ background: C.bg, borderRadius: 10, padding: "12px 16px", marginBottom: 20, border: `1px solid ${C.border}` }}>
+          <div style={{ color: C.textSm, fontSize: 11, marginBottom: 8, fontWeight: 600 }}>VISTA PREVIA — Producto de Q 100.00</div>
+          {(() => {
+            const ejemplo = { precio: 100, qty: 1, impuesto: ivaTemp.porcentaje > 0 ? 1 : 0 };
+            const l = calcLine(ejemplo, ivaTemp);
+            return (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ color: C.textMd, fontSize: 13 }}>Base</span>
+                  <span style={{ color: C.text, fontSize: 13 }}>{fmt(l.base)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ color: C.textMd, fontSize: 13 }}>IVA ({ivaTemp.porcentaje}%)</span>
+                  <span style={{ color: C.text, fontSize: 13 }}>{fmt(l.ivaMonto)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${C.border}`, paddingTop: 6, marginTop: 4 }}>
+                  <span style={{ color: C.text, fontSize: 14, fontWeight: 700 }}>Total a cobrar</span>
+                  <span style={{ color: C.green, fontSize: 14, fontWeight: 700 }}>{fmt(l.total)}</span>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setShowConfigModal(false)} style={{ ...btnSecondary, flex: 1 }}>Cancelar</button>
+          <button onClick={saveIvaConfig} style={{ ...btnPrimary, flex: 2 }}>✓ Guardar Configuración</button>
+        </div>
+      </div>
+    </div>
+  );
 
   // ─── TICKET MODAL ─────────────────────────────────────────────────────────────
   const TicketModal = () => !lastTicket ? null : (
@@ -257,23 +377,32 @@ export default function POS() {
         </div>
         <div style={{ marginBottom: 12 }}>
           <div style={{ color: C.textMd, fontSize: 11, marginBottom: 6 }}>Cliente: <span style={{ color: C.text }}>{lastTicket.customer?.nombre || "Consumidor Final"}</span></div>
-          {lastTicket.items.map(item => (
-            <div key={item.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <span style={{ color: C.textMd, fontSize: 12, flex: 1 }}>{item.nombre}</span>
-              <span style={{ color: C.textSm, fontSize: 12, width: 36, textAlign: "center" }}>x{item.qty}</span>
-              <span style={{ color: C.text, fontSize: 12, width: 72, textAlign: "right" }}>{fmt(calcLine(item).total)}</span>
-            </div>
-          ))}
+          {lastTicket.items.map(item => {
+            const l = calcLine(item, lastTicket.ivaConfig);
+            return (
+              <div key={item.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ color: C.textMd, fontSize: 12, flex: 1 }}>{item.nombre}</span>
+                <span style={{ color: C.textSm, fontSize: 12, width: 36, textAlign: "center" }}>x{item.qty}</span>
+                <span style={{ color: C.text, fontSize: 12, width: 72, textAlign: "right" }}>{fmt(l.total)}</span>
+              </div>
+            );
+          })}
         </div>
         <div style={{ borderTop: `1px dashed ${C.border}`, paddingTop: 10, marginBottom: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-            <span style={{ color: C.textMd, fontSize: 12 }}>Subtotal</span>
-            <span style={{ color: C.text, fontSize: 12 }}>{fmt(lastTicket.subtotal)}</span>
+            <span style={{ color: C.textMd, fontSize: 12 }}>
+              Base {lastTicket.ivaConfig.incluido ? "(sin IVA)" : ""}
+            </span>
+            <span style={{ color: C.text, fontSize: 12 }}>{fmt(lastTicket.base)}</span>
           </div>
-          {lastTicket.tax > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-            <span style={{ color: C.textMd, fontSize: 12 }}>IVA (12%)</span>
-            <span style={{ color: C.text, fontSize: 12 }}>{fmt(lastTicket.tax)}</span>
-          </div>}
+          {lastTicket.iva > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ color: C.textMd, fontSize: 12 }}>
+                IVA ({lastTicket.ivaConfig.porcentaje}%) {lastTicket.ivaConfig.incluido ? "incluido" : ""}
+              </span>
+              <span style={{ color: C.text, fontSize: 12 }}>{fmt(lastTicket.iva)}</span>
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
             <span style={{ color: C.text, fontSize: 16, fontWeight: 700 }}>TOTAL</span>
             <span style={{ color: C.green, fontSize: 16, fontWeight: 700 }}>{fmt(lastTicket.total)}</span>
@@ -315,6 +444,23 @@ export default function POS() {
           <div style={{ color: C.green, fontSize: 36, fontWeight: 800 }}>{fmt(cartTotal)}</div>
           <div style={{ color: C.textMd, fontSize: 12 }}>{cart.length} producto{cart.length !== 1 ? "s" : ""}</div>
         </div>
+
+        {/* Desglose IVA en modal de cobro */}
+        {cartIva > 0 && (
+          <div style={{ background: C.panel, borderRadius: 8, padding: "10px 14px", marginBottom: 16, border: `1px solid ${C.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ color: C.textMd, fontSize: 12 }}>Base imponible</span>
+              <span style={{ color: C.text, fontSize: 12 }}>{fmt(cartBase)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: C.textMd, fontSize: 12 }}>
+                IVA {ivaConfig.porcentaje}% {ivaConfig.incluido ? "(incluido)" : "(agregado)"}
+              </span>
+              <span style={{ color: C.text, fontSize: 12 }}>{fmt(cartIva)}</span>
+            </div>
+          </div>
+        )}
+
         <div style={{ marginBottom: 16 }}>
           <div style={{ color: C.textMd, fontSize: 12, marginBottom: 8 }}>Forma de pago</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -424,8 +570,9 @@ export default function POS() {
             </div>
             <span style={{ color: C.green, fontWeight: 700 }}>{fmt(s.total)}</span>
           </div>
-          <div style={{ color: C.textMd, fontSize: 13, marginTop: 6 }}>
-            {PAYMENT_METHODS.find(m => m.id === s.metodo_pago)?.label || s.metodo_pago} · {s.sucursal}
+          <div style={{ color: C.textMd, fontSize: 13, marginTop: 6, display: "flex", gap: 16 }}>
+            <span>{PAYMENT_METHODS.find(m => m.id === s.metodo_pago)?.label || s.metodo_pago}</span>
+            {s.impuesto > 0 && <span style={{ color: C.textSm }}>IVA: {fmt(s.impuesto)}</span>}
           </div>
         </div>
       ))}
@@ -456,7 +603,6 @@ export default function POS() {
     );
   };
 
-  // ─── LOADING ──────────────────────────────────────────────────────────────────
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: C.bg, flexDirection: "column", gap: 16 }}>
       <div style={{ fontSize: 32 }}>⚡</div>
@@ -486,15 +632,28 @@ export default function POS() {
             }}><span style={{ fontSize: 16 }}>{item.icon}</span>{item.label}</button>
           ))}
           <div style={{ borderTop: `1px solid ${C.border}`, margin: "8px 0" }} />
-          {[{ id: "productos", icon: "📦", label: "Productos" }, { id: "inventario", icon: "📊", label: "Inventario" }, { id: "clientes", icon: "👤", label: "Clientes" }, { id: "reportes", icon: "📈", label: "Reportes" }, { id: "config", icon: "⚙️", label: "Configuración" }].map(item => (
+          {[{ id: "productos", icon: "📦", label: "Productos" }, { id: "inventario", icon: "📊", label: "Inventario" }, { id: "clientes", icon: "👤", label: "Clientes" }, { id: "reportes", icon: "📈", label: "Reportes" }].map(item => (
             <button key={item.id} onClick={() => notify(`Módulo ${item.label} — próximamente`, "info")} style={{
               display: "flex", alignItems: "center", gap: 10, width: "100%",
               padding: "9px 12px", marginBottom: 4, borderRadius: 8, border: "none",
               background: "transparent", color: C.textSm, fontSize: 13, cursor: "pointer", textAlign: "left"
             }}><span style={{ fontSize: 16 }}>{item.icon}</span>{item.label}</button>
           ))}
+          <div style={{ borderTop: `1px solid ${C.border}`, margin: "8px 0" }} />
+          {/* Configuración activa */}
+          <button onClick={() => { setIvaTemp(ivaConfig); setShowConfigModal(true); }} style={{
+            display: "flex", alignItems: "center", gap: 10, width: "100%",
+            padding: "9px 12px", marginBottom: 4, borderRadius: 8, border: "none",
+            background: "transparent", color: C.textMd, fontSize: 13, cursor: "pointer", textAlign: "left"
+          }}><span style={{ fontSize: 16 }}>⚙️</span>Configuración</button>
         </nav>
-        <div style={{ padding: "12px 18px", borderTop: `1px solid ${C.border}`, background: C.panel }}>
+        <div style={{ padding: "12px 18px", borderBottom: `1px solid ${C.border}`, background: C.panel }}>
+          {/* Badge IVA config */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+            <span style={{ fontSize: 10, background: ivaConfig.incluido ? C.greenBg : C.blueBg, color: ivaConfig.incluido ? C.green : C.blue, padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>
+              IVA {ivaConfig.porcentaje}% {ivaConfig.incluido ? "incluido" : "agregado"}
+            </span>
+          </div>
           <div style={{ color: C.textMd, fontSize: 12, fontWeight: 600 }}>Admin</div>
           <div style={{ color: C.textSm, fontSize: 11 }}>Sucursal Principal</div>
           <div style={{ color: C.textSm, fontSize: 11, marginTop: 2 }}>{time} · <span style={{ color: C.green }}>●</span> En línea</div>
@@ -510,7 +669,6 @@ export default function POS() {
           </div>
         ) : (
           <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-
             {/* Products */}
             <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
               <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, background: C.card, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
@@ -536,7 +694,6 @@ export default function POS() {
                   ))}
                 </div>
               </div>
-
               <div style={{ flex: 1, overflowY: "auto", padding: 16, background: C.bg }}>
                 {filtered.length === 0 ? (
                   <div style={{ textAlign: "center", color: C.textSm, padding: 60 }}>
@@ -564,53 +721,56 @@ export default function POS() {
 
             {/* Cart */}
             <div style={{ width: 330, background: C.card, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column", boxShadow: "-2px 0 8px rgba(0,0,0,0.04)" }}>
-              <button onClick={() => setShowCustomerModal(true)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${C.border}`, background: C.panel, border: "none", borderBottom: `1px solid ${C.border}`, cursor: "pointer" }}>
+              <button onClick={() => setShowCustomerModal(true)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: C.panel, border: "none", borderBottom: `1px solid ${C.border}`, cursor: "pointer", width: "100%" }}>
                 <div style={{ textAlign: "left" }}>
                   <div style={{ color: C.textSm, fontSize: 10, marginBottom: 2 }}>CLIENTE</div>
                   <div style={{ color: C.text, fontSize: 14, fontWeight: 600 }}>{customer?.nombre || "Consumidor Final"}</div>
                 </div>
                 <span style={{ color: C.blue, fontSize: 18 }}>›</span>
               </button>
-
               <div style={{ flex: 1, overflowY: "auto" }}>
                 {cart.length === 0 ? (
                   <div style={{ textAlign: "center", color: C.textSm, padding: "40px 20px" }}>
                     <div style={{ fontSize: 36, marginBottom: 8 }}>🛒</div>
                     <div style={{ fontSize: 13 }}>Toca un producto para agregar</div>
                   </div>
-                ) : cart.map(item => (
-                  <div key={item.id} style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}` }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <div style={{ flex: 1, marginRight: 8 }}>
-                        <div style={{ color: C.text, fontSize: 13, fontWeight: 500, lineHeight: 1.3 }}>{item.nombre}</div>
-                        <div style={{ color: C.textSm, fontSize: 11, marginTop: 2 }}>{fmt(item.precio)} c/u</div>
+                ) : cart.map(item => {
+                  const l = calcLine(item, ivaConfig);
+                  return (
+                    <div key={item.id} style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ flex: 1, marginRight: 8 }}>
+                          <div style={{ color: C.text, fontSize: 13, fontWeight: 500, lineHeight: 1.3 }}>{item.nombre}</div>
+                          <div style={{ color: C.textSm, fontSize: 11, marginTop: 2 }}>{fmt(item.precio)} c/u</div>
+                        </div>
+                        <button onClick={() => removeItem(item.id)} style={{ color: C.textSm, background: "none", border: "none", cursor: "pointer", fontSize: 16, padding: 2 }}>✕</button>
                       </div>
-                      <button onClick={() => removeItem(item.id)} style={{ color: C.textSm, background: "none", border: "none", cursor: "pointer", fontSize: 16, padding: 2 }}>✕</button>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <button onClick={() => updateQty(item.id, -1)} style={{ width: 28, height: 28, borderRadius: 6, background: C.panel, border: `1px solid ${C.border}`, color: C.textMd, cursor: "pointer", fontSize: 16 }}>−</button>
-                        <span style={{ color: C.text, fontSize: 14, fontWeight: 600, width: 28, textAlign: "center" }}>{item.qty}</span>
-                        <button onClick={() => updateQty(item.id, 1)} style={{ width: 28, height: 28, borderRadius: 6, background: C.panel, border: `1px solid ${C.border}`, color: C.textMd, cursor: "pointer", fontSize: 16 }}>+</button>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <button onClick={() => updateQty(item.id, -1)} style={{ width: 28, height: 28, borderRadius: 6, background: C.panel, border: `1px solid ${C.border}`, color: C.textMd, cursor: "pointer", fontSize: 16 }}>−</button>
+                          <span style={{ color: C.text, fontSize: 14, fontWeight: 600, width: 28, textAlign: "center" }}>{item.qty}</span>
+                          <button onClick={() => updateQty(item.id, 1)} style={{ width: 28, height: 28, borderRadius: 6, background: C.panel, border: `1px solid ${C.border}`, color: C.textMd, cursor: "pointer", fontSize: 16 }}>+</button>
+                        </div>
+                        <span style={{ color: C.green, fontWeight: 700, fontSize: 15 }}>{fmt(l.total)}</span>
                       </div>
-                      <span style={{ color: C.green, fontWeight: 700, fontSize: 15 }}>{fmt(calcLine(item).total)}</span>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-
               <div style={{ borderTop: `1px solid ${C.border}`, padding: 16, background: C.panel }}>
-                {cartTax > 0 && <>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                    <span style={{ color: C.textMd, fontSize: 13 }}>Subtotal</span>
-                    <span style={{ color: C.textMd, fontSize: 13 }}>{fmt(cartSubtotal)}</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                    <span style={{ color: C.textMd, fontSize: 13 }}>IVA</span>
-                    <span style={{ color: C.textMd, fontSize: 13 }}>{fmt(cartTax)}</span>
-                  </div>
-                </>}
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14, paddingTop: cartTax > 0 ? 8 : 0, borderTop: cartTax > 0 ? `1px solid ${C.border}` : "none" }}>
+                {cartIva > 0 && (
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ color: C.textMd, fontSize: 12 }}>Base</span>
+                      <span style={{ color: C.textMd, fontSize: 12 }}>{fmt(cartBase)}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ color: C.textMd, fontSize: 12 }}>IVA {ivaConfig.porcentaje}% {ivaConfig.incluido ? "(incluido)" : ""}</span>
+                      <span style={{ color: C.textMd, fontSize: 12 }}>{fmt(cartIva)}</span>
+                    </div>
+                  </>
+                )}
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14, paddingTop: cartIva > 0 ? 8 : 0, borderTop: cartIva > 0 ? `1px solid ${C.border}` : "none" }}>
                   <span style={{ color: C.text, fontSize: 18, fontWeight: 700 }}>Total</span>
                   <span style={{ color: C.green, fontSize: 24, fontWeight: 800 }}>{fmt(cartTotal)}</span>
                 </div>
@@ -628,9 +788,10 @@ export default function POS() {
         )}
       </div>
 
-      {showPayModal && <PayModal />}
+      {showPayModal      && <PayModal />}
       {showCustomerModal && <CustomerModal />}
-      {showTicketModal && <TicketModal />}
+      {showTicketModal   && <TicketModal />}
+      {showConfigModal   && <ConfigModal />}
 
       {notification && (
         <div style={{
