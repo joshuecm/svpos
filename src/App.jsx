@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { tienePermiso, ROLES, ROL_COLOR, ROL_BG, ROL_ICON } from "./usuarios.js";
 import UsuariosModal from "./UsuariosModal.jsx";
+import RolesModal from "./RolesModal.jsx";
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
@@ -662,6 +663,7 @@ export default function POS({ usuario, onLogout }) {
   const [showConfigModal,   setShowConfigModal]   = useState(false);
   const [showBancosModal,   setShowBancosModal]   = useState(false);
   const [showUsuariosModal, setShowUsuariosModal] = useState(false);
+  const [showRolesModal,    setShowRolesModal]    = useState(false);
   const [showSidebar,       setShowSidebar]       = useState(false);
   const [showCart,          setShowCart]          = useState(false);
   const [lastTicket,        setLastTicket]        = useState(null);
@@ -845,6 +847,11 @@ export default function POS({ usuario, onLogout }) {
         {puedo("gestion_usuarios")&&(
           <button onClick={()=>{setShowUsuariosModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textMd,fontSize:14,cursor:"pointer",textAlign:"left"}}>
             <span style={{fontSize:18}}>👥</span>Usuarios
+          </button>
+        )}
+        {puedo("gestion_usuarios")&&(
+          <button onClick={()=>{setShowRolesModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textMd,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:18}}>🎭</span>Roles
           </button>
         )}
         {puedo("config_iva")&&(
@@ -1179,6 +1186,13 @@ export default function POS({ usuario, onLogout }) {
           usuarioActual={usuario}
           isMobile={isMobile}
           onClose={()=>setShowUsuariosModal(false)}
+        />
+      )}
+      {showRolesModal&&puedo("gestion_usuarios")&&(
+        <RolesModal
+          usuarioActual={usuario}
+          isMobile={isMobile}
+          onClose={()=>setShowRolesModal(false)}
         />
       )}
 
