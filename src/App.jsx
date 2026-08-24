@@ -256,7 +256,7 @@ export default function POS() {
   };
 
   const openPayModal = () => {
-    setPagos([{metodo:"cash", monto:cartTotal.toFixed(2), extras:{}}]);
+    setPagos([{metodo:"cash", monto:"", extras:{}}]);
     setShowPayModal(true);
   };
 
@@ -382,7 +382,7 @@ export default function POS() {
                     <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>Monto</label>
                     <input type="number" value={pago.monto}
                       onChange={e=>updatePago(i,"monto",e.target.value)}
-                      onFocus={()=>autoMonto(i)}
+                      
                       placeholder="0.00"
                       style={{...inputStyle,fontSize:18,fontWeight:700,textAlign:"right"}}/>
                   </div>
