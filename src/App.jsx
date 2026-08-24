@@ -277,7 +277,8 @@ export default function POS() {
     if(!pagoValido){ notify("El total pagado no coincide con el total de la venta","error"); return; }
     for(const p of pagos) {
       if(p.metodo==="credit"&&!customer?.credito){ notify("Cliente sin crédito autorizado","error"); return; }
-      if(p.metodo==="transfer"&&(!p.extras.banco_receptor_id)){ notify("Selecciona el banco receptor para la transferencia","error"); return; }
+      if(p.metodo==="transfer"&&!p.extras.banco_receptor_id){ notify("Selecciona el banco receptor para la transferencia","error"); return; }
+      if(p.metodo==="transfer"&&!p.extras.autorizacion?.trim()){ notify("Ingresa el número de autorización de la transferencia","error"); return; }
       if(p.metodo==="card"&&!p.extras.tipo_tarjeta){ notify("Selecciona el tipo de tarjeta","error"); return; }
     }
     setSaving(true);
@@ -316,82 +317,7 @@ export default function POS() {
     setSaving(false);
   };
 
-  // ─── MÓDULO BANCOS MODAL ──────────────────────────────────────────────────────
-  const BancosModal = () => (
-    <div style={overlayStyle}>
-      <div style={{...modalStyle,width:isMobile?"95vw":560}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-          <h2 style={{color:C.text,fontSize:18,fontWeight:700}}>🏦 Catálogo de Bancos</h2>
-          <button onClick={()=>{setShowBancosModal(false);setBancoEditId(null);setBancoForm({nombre:"",numero_cuenta:"",tipo:"receptor"});}} style={btnClose}>✕</button>
-        </div>
-
-        {/* Form */}
-        <div style={{background:C.panel,borderRadius:10,padding:16,marginBottom:20,border:`1px solid ${C.border}`}}>
-          <div style={{color:C.textMd,fontSize:13,fontWeight:600,marginBottom:12}}>{bancoEditId?"✏️ Editar banco":"➕ Agregar banco"}</div>
-          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10,marginBottom:10}}>
-            <div>
-              <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Nombre del banco *</label>
-              <input value={bancoForm.nombre} onChange={e=>setBancoForm(p=>({...p,nombre:e.target.value}))}
-                placeholder="Ej: Banrural" style={inputStyle}/>
-            </div>
-            <div>
-              <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Número de cuenta</label>
-              <input value={bancoForm.numero_cuenta} onChange={e=>setBancoForm(p=>({...p,numero_cuenta:e.target.value}))}
-                placeholder="Ej: 3-000-123456-7" style={inputStyle}/>
-            </div>
-          </div>
-          <div style={{marginBottom:12}}>
-            <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:6}}>Tipo</label>
-            <div style={{display:"flex",gap:8}}>
-              {[{id:"receptor",label:"📥 Receptor",desc:"Recibe pagos"},{id:"emisor",label:"📤 Emisor",desc:"De donde vienen transferencias"}].map(t=>(
-                <button key={t.id} onClick={()=>setBancoForm(p=>({...p,tipo:t.id}))} style={{
-                  flex:1,padding:"10px 8px",borderRadius:8,cursor:"pointer",textAlign:"center",
-                  border:`2px solid ${bancoForm.tipo===t.id?C.blue:C.border}`,
-                  background:bancoForm.tipo===t.id?C.blueBg:C.card,
-                  color:bancoForm.tipo===t.id?C.blue:C.textMd,fontSize:13,fontWeight:bancoForm.tipo===t.id?600:400
-                }}>
-                  <div>{t.label}</div>
-                  <div style={{fontSize:10,color:bancoForm.tipo===t.id?C.blue:C.textSm,marginTop:2}}>{t.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div style={{display:"flex",gap:8}}>
-            {bancoEditId&&<button onClick={()=>{setBancoEditId(null);setBancoForm({nombre:"",numero_cuenta:"",tipo:"receptor"});}} style={{...btnSecondary,flex:1}}>Cancelar</button>}
-            <button onClick={saveBanco} style={{...btnPrimary,flex:2}}>{bancoEditId?"✓ Actualizar":"➕ Agregar banco"}</button>
-          </div>
-        </div>
-
-        {/* Lista */}
-        <div style={{color:C.textMd,fontSize:13,fontWeight:600,marginBottom:10}}>Bancos registrados ({bancos.length})</div>
-        {bancos.length===0?(
-          <div style={{textAlign:"center",color:C.textSm,padding:30,background:C.panel,borderRadius:10,border:`1px solid ${C.border}`}}>
-            <div style={{fontSize:32,marginBottom:8}}>🏦</div>
-            <div>No hay bancos registrados aún</div>
-            <div style={{fontSize:12,marginTop:4}}>Agrega los bancos con los que trabajas</div>
-          </div>
-        ):bancos.map(b=>(
-          <div key={b.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",marginBottom:8,background:C.card,border:`1px solid ${C.border}`,borderRadius:8}}>
-            <div style={{flex:1}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{color:C.text,fontWeight:600,fontSize:14}}>{b.nombre}</span>
-                <span style={{
-                  fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,
-                  background:b.tipo==="receptor"?C.greenBg:C.blueBg,
-                  color:b.tipo==="receptor"?C.green:C.blue
-                }}>{b.tipo==="receptor"?"📥 Receptor":"📤 Emisor"}</span>
-              </div>
-              {b.numero_cuenta&&<div style={{color:C.textSm,fontSize:12,marginTop:2}}>Cuenta: {b.numero_cuenta}</div>}
-            </div>
-            <div style={{display:"flex",gap:6}}>
-              <button onClick={()=>editBanco(b)} style={{...btnSecondary,padding:"6px 10px",fontSize:12}}>✏️</button>
-              <button onClick={()=>deleteBanco(b.id)} style={{...btnDanger,padding:"6px 10px",fontSize:12}}>🗑</button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  // BancosModal se renderiza abajo como componente externo
 
   // ─── PAY MODAL — pago mixto ───────────────────────────────────────────────────
   const PayModal = () => {
@@ -546,9 +472,10 @@ export default function POS() {
                           </div>
                         )}
                         <div>
-                          <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>Número de autorización *</label>
+                          <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>No. de autorización del banco emisor *</label>
                           <input value={pago.extras.autorizacion||""} onChange={e=>updatePagoExtra(i,"autorizacion",e.target.value)}
                             placeholder="Ej: TRX-123456" style={{...inputStyle,fontSize:14}}/>
+                          <div style={{color:C.textSm,fontSize:10,marginTop:4}}>Número de referencia o comprobante de la transferencia</div>
                         </div>
                       </>
                     )}
@@ -1087,7 +1014,13 @@ export default function POS() {
       {showCustomerModal &&<CustomerModal/>}
       {showTicketModal   &&<TicketModal/>}
       {showConfigModal   &&<ConfigModal/>}
-      {showBancosModal   &&<BancosModal/>}
+      {showBancosModal&&(
+        <BancosModal
+          bancos={bancos} setBancos={setBancos}
+          onClose={()=>setShowBancosModal(false)}
+          isMobile={isMobile}
+        />
+      )}
 
       {isMobile&&activeTab==="pos"&&!showCart&&(
         <button onClick={()=>setShowCart(true)} style={{position:"fixed",bottom:70,right:16,zIndex:50,background:C.blue,color:"#fff",border:"none",borderRadius:20,padding:"12px 20px",boxShadow:"0 4px 16px rgba(59,130,246,0.4)",fontSize:15,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:8}}>
@@ -1101,6 +1034,162 @@ export default function POS() {
           {notification.msg}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── BANCOS MODAL — componente externo para evitar pérdida de foco ────────────
+function BancosModal({ bancos, setBancos, onClose, isMobile }) {
+  const [form,     setForm]     = useState({nombre:"", numero_cuenta:"", tipo:"receptor"});
+  const [editId,   setEditId]   = useState(null);
+  const [saving,   setSaving]   = useState(false);
+
+  const notify = (msg) => console.log(msg); // feedback visual mínimo aquí
+
+  const save = async () => {
+    if (!form.nombre.trim()) return;
+    setSaving(true);
+    try {
+      // Solo receptor lleva número de cuenta
+      const payload = {
+        nombre: form.nombre.trim(),
+        tipo:   form.tipo,
+        numero_cuenta: form.tipo==="receptor" ? (form.numero_cuenta.trim()||null) : null,
+      };
+      if (editId) {
+        await sb(`bancos?id=eq.${editId}`, "PATCH", payload);
+      } else {
+        await sb("bancos", "POST", payload);
+      }
+      const bcos = await sb("bancos","GET",null,"?activo=eq.true&order=nombre");
+      setBancos(bcos||[]);
+      setForm({nombre:"",numero_cuenta:"",tipo:"receptor"});
+      setEditId(null);
+    } catch(e) { console.error(e); }
+    setSaving(false);
+  };
+
+  const edit = (b) => {
+    setForm({nombre:b.nombre, numero_cuenta:b.numero_cuenta||"", tipo:b.tipo});
+    setEditId(b.id);
+  };
+
+  const remove = async (id) => {
+    await sb(`bancos?id=eq.${id}`,"PATCH",{activo:false});
+    setBancos(prev=>prev.filter(b=>b.id!==id));
+  };
+
+  const cancel = () => { setForm({nombre:"",numero_cuenta:"",tipo:"receptor"}); setEditId(null); };
+  const close  = () => { cancel(); onClose(); };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,backdropFilter:"blur(3px)"}}>
+      <div style={{background:"#fff",border:"1px solid #E2E8F0",borderRadius:14,padding:24,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",maxHeight:"92vh",overflowY:"auto",width:isMobile?"95vw":"560px"}}>
+
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <h2 style={{color:"#1E293B",fontSize:18,fontWeight:700,margin:0}}>🏦 Catálogo de Bancos</h2>
+          <button onClick={close} style={{background:"none",border:"none",color:"#94A3B8",fontSize:22,cursor:"pointer",padding:"4px 8px"}}>✕</button>
+        </div>
+
+        {/* Formulario */}
+        <div style={{background:"#F8F9FB",borderRadius:10,padding:16,marginBottom:20,border:"1px solid #E2E8F0"}}>
+          <div style={{color:"#475569",fontSize:13,fontWeight:600,marginBottom:12}}>
+            {editId ? "✏️ Editar banco" : "➕ Agregar banco"}
+          </div>
+
+          {/* Tipo primero — determina si mostrar cuenta */}
+          <div style={{marginBottom:12}}>
+            <label style={{color:"#94A3B8",fontSize:12,display:"block",marginBottom:6}}>Tipo de banco</label>
+            <div style={{display:"flex",gap:8}}>
+              {[
+                {id:"receptor", label:"📥 Receptor", desc:"Cuenta que recibe pagos"},
+                {id:"emisor",   label:"📤 Emisor",   desc:"Banco del cliente que paga"},
+              ].map(t=>(
+                <button key={t.id} onClick={()=>setForm(p=>({...p,tipo:t.id,numero_cuenta:""}))} style={{
+                  flex:1,padding:"10px 8px",borderRadius:8,cursor:"pointer",textAlign:"center",
+                  border:`2px solid ${form.tipo===t.id?"#3B82F6":"#E2E8F0"}`,
+                  background:form.tipo===t.id?"#EFF6FF":"#fff",
+                  color:form.tipo===t.id?"#3B82F6":"#475569",
+                  fontSize:13,fontWeight:form.tipo===t.id?600:400
+                }}>
+                  <div>{t.label}</div>
+                  <div style={{fontSize:10,color:form.tipo===t.id?"#3B82F6":"#94A3B8",marginTop:2}}>{t.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Nombre */}
+          <div style={{marginBottom:10}}>
+            <label style={{color:"#94A3B8",fontSize:12,display:"block",marginBottom:4}}>Nombre del banco *</label>
+            <input
+              value={form.nombre}
+              onChange={e => setForm(p=>({...p, nombre:e.target.value}))}
+              placeholder="Ej: Banrural, BAC, Banco Industrial..."
+              style={{background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"10px 14px",color:"#1E293B",fontSize:14,outline:"none",width:"100%",boxSizing:"border-box"}}
+            />
+          </div>
+
+          {/* Número de cuenta — solo receptor */}
+          {form.tipo==="receptor" && (
+            <div style={{marginBottom:12}}>
+              <label style={{color:"#94A3B8",fontSize:12,display:"block",marginBottom:4}}>Número de cuenta</label>
+              <input
+                value={form.numero_cuenta}
+                onChange={e => setForm(p=>({...p, numero_cuenta:e.target.value}))}
+                placeholder="Ej: 3-000-123456-7"
+                style={{background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"10px 14px",color:"#1E293B",fontSize:14,outline:"none",width:"100%",boxSizing:"border-box"}}
+              />
+            </div>
+          )}
+
+          {form.tipo==="emisor" && (
+            <div style={{background:"#EFF6FF",borderRadius:8,padding:"8px 12px",marginBottom:12,border:"1px solid #BFDBFE"}}>
+              <span style={{color:"#3B82F6",fontSize:12}}>ℹ️ El banco emisor es el banco del cliente — no requiere número de cuenta.</span>
+            </div>
+          )}
+
+          <div style={{display:"flex",gap:8}}>
+            {editId && <button onClick={cancel} style={{background:"#fff",color:"#475569",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"10px 16px",fontSize:14,cursor:"pointer",flex:1}}>Cancelar</button>}
+            <button onClick={save} disabled={saving||!form.nombre.trim()} style={{background:"#3B82F6",color:"#fff",border:"none",borderRadius:8,padding:"10px 16px",fontSize:14,fontWeight:600,cursor:"pointer",flex:2,opacity:saving||!form.nombre.trim()?0.5:1}}>
+              {saving ? "⏳ Guardando..." : editId ? "✓ Actualizar" : "➕ Agregar banco"}
+            </button>
+          </div>
+        </div>
+
+        {/* Lista */}
+        <div style={{color:"#475569",fontSize:13,fontWeight:600,marginBottom:10}}>
+          Bancos registrados ({bancos.length})
+        </div>
+        {bancos.length===0 ? (
+          <div style={{textAlign:"center",color:"#94A3B8",padding:30,background:"#F8F9FB",borderRadius:10,border:"1px solid #E2E8F0"}}>
+            <div style={{fontSize:32,marginBottom:8}}>🏦</div>
+            <div>No hay bancos registrados aún</div>
+            <div style={{fontSize:12,marginTop:4}}>Agrega los bancos con los que trabajas</div>
+          </div>
+        ) : bancos.map(b=>(
+          <div key={b.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",marginBottom:8,background:"#fff",border:"1px solid #E2E8F0",borderRadius:8}}>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <span style={{color:"#1E293B",fontWeight:600,fontSize:14}}>{b.nombre}</span>
+                <span style={{
+                  fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,
+                  background:b.tipo==="receptor"?"#F0FDF4":"#EFF6FF",
+                  color:b.tipo==="receptor"?"#16A34A":"#3B82F6"
+                }}>{b.tipo==="receptor"?"📥 Receptor":"📤 Emisor"}</span>
+              </div>
+              {b.numero_cuenta && (
+                <div style={{color:"#94A3B8",fontSize:12,marginTop:2}}>Cuenta: {b.numero_cuenta}</div>
+              )}
+            </div>
+            <div style={{display:"flex",gap:6,flexShrink:0}}>
+              <button onClick={()=>edit(b)} style={{background:"#fff",color:"#475569",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>✏️</button>
+              <button onClick={()=>remove(b.id)} style={{background:"#FEF2F2",color:"#DC2626",border:"1.5px solid #FECACA",borderRadius:8,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>🗑</button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
