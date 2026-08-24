@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { tienePermiso, ROLES, ROL_COLOR, ROL_BG, ROL_ICON } from "./usuarios.js";
 import UsuariosModal from "./UsuariosModal.jsx";
 import RolesModal from "./RolesModal.jsx";
+import ProductosModal from "./ProductosModal.jsx";
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
@@ -664,6 +665,7 @@ export default function POS({ usuario, onLogout }) {
   const [showBancosModal,   setShowBancosModal]   = useState(false);
   const [showUsuariosModal, setShowUsuariosModal] = useState(false);
   const [showRolesModal,    setShowRolesModal]    = useState(false);
+  const [showProductosModal,setShowProductosModal]= useState(false);
   const [showSidebar,       setShowSidebar]       = useState(false);
   const [showCart,          setShowCart]          = useState(false);
   const [lastTicket,        setLastTicket]        = useState(null);
@@ -826,18 +828,26 @@ export default function POS({ usuario, onLogout }) {
           </button>
         ))}
         <div style={{borderTop:`1px solid ${C.border}`,margin:"8px 0"}}/>
-        {[
-          {id:"productos",  icon:"📦", label:"Productos",  permiso:"catalogo_productos"},
-          {id:"inventario", icon:"📊", label:"Inventario", permiso:"entradas_inventario"},
-          {id:"clientes",   icon:"👤", label:"Clientes",   permiso:"catalogo_clientes"},
-          {id:"reportes",   icon:"📈", label:"Reportes",   permiso:"reportes"},
-        ].map(item=>(
-          puedo(item.permiso)&&(
-            <button key={item.id} onClick={()=>notify(`Módulo ${item.label} — próximamente`,"info")} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
-              <span style={{fontSize:18}}>{item.icon}</span>{item.label}
-            </button>
-          )
-        ))}
+        {puedo("catalogo_productos")&&(
+          <button onClick={()=>{setShowProductosModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:18}}>📦</span>Productos
+          </button>
+        )}
+        {puedo("entradas_inventario")&&(
+          <button onClick={()=>notify("Módulo Inventario — próximamente","info")} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:18}}>📊</span>Inventario
+          </button>
+        )}
+        {puedo("catalogo_clientes")&&(
+          <button onClick={()=>notify("Módulo Clientes — próximamente","info")} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:18}}>👤</span>Clientes
+          </button>
+        )}
+        {puedo("reportes")&&(
+          <button onClick={()=>notify("Módulo Reportes — próximamente","info")} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:18}}>📈</span>Reportes
+          </button>
+        )}
         <div style={{borderTop:`1px solid ${C.border}`,margin:"8px 0"}}/>
         {puedo("catalogo_bancos")&&(
           <button onClick={()=>{setShowBancosModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textMd,fontSize:14,cursor:"pointer",textAlign:"left"}}>
@@ -1186,6 +1196,12 @@ export default function POS({ usuario, onLogout }) {
           usuarioActual={usuario}
           isMobile={isMobile}
           onClose={()=>setShowUsuariosModal(false)}
+        />
+      )}
+      {showProductosModal&&puedo("catalogo_productos")&&(
+        <ProductosModal
+          isMobile={isMobile}
+          onClose={()=>{setShowProductosModal(false);loadAll();}}
         />
       )}
       {showRolesModal&&puedo("gestion_usuarios")&&(
