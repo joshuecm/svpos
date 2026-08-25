@@ -1502,7 +1502,7 @@ export default function POS({ usuario, onLogout }) {
         <ClientesModal isMobile={isMobile} onClose={()=>{setShowClientesModal(false);loadAll();}}/>
       )}
       {showInventarioModal&&puedo("entradas_inventario")&&(
-        <InventarioModal isMobile={isMobile} usuario={usuario} modoAdmin={modoInventarioAdmin} onClose={()=>{setShowInventarioModal(false);loadAll();}}/>
+        <InventarioModal isMobile={isMobile} usuario={usuario} modoAdmin={puedo("catalogo_productos")} verHistorial={puedo("ver_historial_entradas")} onClose={()=>{setShowInventarioModal(false);loadAll();}}/>
       )}
       {showProveedoresModal&&puedo("catalogo_proveedores")&&(
         <ProveedoresModal isMobile={isMobile} onClose={()=>setShowProveedoresModal(false)}/>
