@@ -897,30 +897,58 @@ export default function POS({ usuario, onLogout }) {
   const completeSale = async (pagos) => {
     try {
       const serie = usuario?.serie_correlativo || "A";
-      const correlativo=`${serie}-${String(Date.now()).slice(-6)}`;
-      const metodoResumen=pagos.map(p=>p.metodo).join("+");
-      const totalPagado=pagos.reduce((s,p)=>s+parseFloat(p.monto||0),0);
-      const [venta]=await sb("ventas","POST",{
+
+      // ── Correlativo consecutivo
+      let correlativo;
+      try {
+        // Obtener y actualizar el correlativo de esta serie
+        const corrData = await sb("correlativos","GET",null,`?serie=eq.${serie}`);
+        if (corrData?.length) {
+          const siguiente = (corrData[0].ultimo||0) + 1;
+          await sb(`correlativos?serie=eq.${serie}`,"PATCH",{ultimo:siguiente});
+          correlativo = `${serie}-${String(siguiente).padStart(6,"0")}`;
+        } else {
+          // Si no existe la serie, crearla
+          await sb("correlativos","POST",{serie, ultimo:1});
+          correlativo = `${serie}-000001`;
+        }
+      } catch {
+        // Fallback si falla la tabla
+        correlativo = `${serie}-${String(Date.now()).slice(-6)}`;
+      }
+
+      const metodoResumen = pagos.map(p=>p.metodo).join("+");
+      const totalPagado   = pagos.reduce((s,p)=>s+parseFloat(p.monto||0),0);
+      const hayCredito    = pagos.some(p=>p.metodo==="credit");
+      const montoCredito  = hayCredito ? parseFloat(pagos.find(p=>p.metodo==="credit")?.monto||0) : 0;
+
+      const [venta] = await sb("ventas","POST",{
         correlativo, cliente_id:customer?.id||null,
         subtotal:cartBase, impuesto:cartIva, total:cartTotal,
         metodo_pago:metodoResumen, monto_recibido:totalPagado, cambio:0,
         cajero: usuario?.nombre || "Admin",
         sucursal: usuario?.sucursal || "Principal",
+        monto_pagado: hayCredito ? 0 : totalPagado,
+        saldo_pendiente: hayCredito ? cartTotal : 0,
       });
+
       await sb("detalle_ventas","POST",cart.map(item=>({
         venta_id:venta.id, producto_id:item.id, nombre:item.nombre,
         cantidad:item.qty, precio:item.precio, impuesto:item.impuesto,
         subtotal:calcLine(item,ivaConfig).total,
       })));
+
       for(const item of cart) await sb(`productos?id=eq.${item.id}`,"PATCH",{stock:item.stock-item.qty});
 
-      // Si hay pago a crédito, actualizar saldo del cliente
-      const pagoCredito = pagos.find(p=>p.metodo==="credit");
-      if(pagoCredito && customer?.id && customer?.id!==1) {
-        const montoCredito = parseFloat(pagoCredito.monto||0);
-        const nuevoSaldo   = parseFloat(customer.saldo_credito||0) + montoCredito;
+      // ── Si hay crédito, actualizar saldo del cliente
+      if(hayCredito && customer?.id) {
+        const nuevoSaldo = parseFloat(customer.saldo_credito||0) + montoCredito;
         await sb(`clientes?id=eq.${customer.id}`,"PATCH",{saldo_credito:nuevoSaldo});
+        // Actualizar cliente en memoria
+        setCustomers(prev=>prev.map(c=>c.id===customer.id?{...c,saldo_credito:nuevoSaldo}:c));
+        setCustomer(prev=>prev?.id===customer.id?{...prev,saldo_credito:nuevoSaldo}:prev);
       }
+
       setProducts(prev=>prev.map(p=>{const ic=cart.find(i=>i.id===p.id);return ic?{...p,stock:p.stock-ic.qty}:p;}));
       const ticket={
         correlativo, date:new Date().toLocaleString("es-GT"),
