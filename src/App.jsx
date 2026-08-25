@@ -3,6 +3,7 @@ import { tienePermiso, ROLES, ROL_COLOR, ROL_BG, ROL_ICON } from "./usuarios.js"
 import UsuariosModal from "./UsuariosModal.jsx";
 import RolesModal from "./RolesModal.jsx";
 import ProductosModal from "./ProductosModal.jsx";
+import ClientesModal from "./ClientesModal.jsx";
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
@@ -666,6 +667,7 @@ export default function POS({ usuario, onLogout }) {
   const [showUsuariosModal, setShowUsuariosModal] = useState(false);
   const [showRolesModal,    setShowRolesModal]    = useState(false);
   const [showProductosModal,setShowProductosModal]= useState(false);
+  const [showClientesModal, setShowClientesModal] = useState(false);
   const [showSidebar,       setShowSidebar]       = useState(false);
   const [showCart,          setShowCart]          = useState(false);
   const [lastTicket,        setLastTicket]        = useState(null);
@@ -839,7 +841,7 @@ export default function POS({ usuario, onLogout }) {
           </button>
         )}
         {puedo("catalogo_clientes")&&(
-          <button onClick={()=>notify("Módulo Clientes — próximamente","info")} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+          <button onClick={()=>{setShowClientesModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
             <span style={{fontSize:18}}>👤</span>Clientes
           </button>
         )}
@@ -1199,10 +1201,10 @@ export default function POS({ usuario, onLogout }) {
         />
       )}
       {showProductosModal&&puedo("catalogo_productos")&&(
-        <ProductosModal
-          isMobile={isMobile}
-          onClose={()=>{setShowProductosModal(false);loadAll();}}
-        />
+        <ProductosModal isMobile={isMobile} onClose={()=>{setShowProductosModal(false);loadAll();}}/>
+      )}
+      {showClientesModal&&puedo("catalogo_clientes")&&(
+        <ClientesModal isMobile={isMobile} onClose={()=>{setShowClientesModal(false);loadAll();}}/>
       )}
       {showRolesModal&&puedo("gestion_usuarios")&&(
         <RolesModal
