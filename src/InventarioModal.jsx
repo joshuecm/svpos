@@ -51,7 +51,7 @@ function ConfirmModal({ data, modoAdmin, saving, onConfirm, onCancel, isMobile }
                 {label:"Proveedor",   value:data.proveedor?.nombre},
                 {label:"No. Factura", value:data.numFactura},
                 {label:"Forma pago",  value:data.tipoPago==="credito"?`Crédito (${data.diasCredito} días)`:"Contado"},
-                {label:"Total",       value:fmt(data.total)},
+                {label:"Total unidades", value:data.lineas.reduce((s,l)=>s+l.cantidad,0)+" unidades"},
                 {label:"Fecha",       value:data.fecha},
                 {label:"Usuario",     value:data.usuario},
               ].map(s=>(
@@ -301,7 +301,11 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
 
   const ESTADO_COLOR = {pagada:C.green,pendiente:C.amber,parcial:C.blue};
   const ESTADO_BG    = {pagada:C.greenBg,pendiente:C.amberBg,parcial:C.blueBg};
-  const filtered     = entradas.filter(e=>search===""||( e.numero_factura||"").toLowerCase().includes(search.toLowerCase()));
+  // Bodeguero no ve historial; admin ve últimas 10 o filtradas por búsqueda
+  const entradasVista = modoAdmin ? entradas : [];
+  const filtered = entradasVista
+    .filter(e=>search===""||( e.numero_factura||"").toLowerCase().includes(search.toLowerCase()))
+    .slice(0, search ? 50 : 10);
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,backdropFilter:"blur(3px)"}}>
@@ -324,11 +328,14 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
                 <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Buscar por No. factura..." style={{...IS,flex:1}}/>
                 <button onClick={()=>setPaso("nuevo")} style={{...BP,whiteSpace:"nowrap"}}>➕ Nueva entrada</button>
               </div>
+              {modoAdmin&&!search&&entradas.length>10&&(
+                <div style={{color:C.textSm,fontSize:12,marginBottom:8,textAlign:"right"}}>Mostrando las últimas 10 de {entradas.length} entradas</div>
+              )}
               {loading?<div style={{textAlign:"center",color:C.textSm,padding:40}}>Cargando...</div>
               :filtered.length===0?
                 <div style={{textAlign:"center",color:C.textSm,padding:40,background:C.panel,borderRadius:12,border:`1px solid ${C.border}`}}>
                   <div style={{fontSize:40,marginBottom:12}}>📦</div>
-                  <div>No hay entradas registradas</div>
+                  <div>{modoAdmin?"No hay entradas registradas":"El historial solo está disponible para administradores"}</div>
                 </div>
               :filtered.map(e=>{
                 const prov = proveedores.find(p=>p.id===e.proveedor_id);
@@ -454,7 +461,10 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
                 })}
                 <div style={{background:C.blueBg,borderRadius:8,padding:"10px 16px",border:`1px solid ${C.blueBorder}`,display:"flex",justifyContent:"space-between"}}>
                   <span style={{color:C.blue,fontWeight:600,fontSize:14}}>Total de la entrada</span>
-                  <span style={{color:C.blue,fontWeight:800,fontSize:18}}>{fmt(totalEntrada)}</span>
+                  <div style={{textAlign:"right"}}>
+                    {modoAdmin&&<div style={{color:C.blue,fontWeight:800,fontSize:18}}>{fmt(totalEntrada)}</div>}
+                    <div style={{color:C.textMd,fontSize:13}}>{lineas.reduce((s,l)=>s+parseFloat(l.cantidad||0),0)} unidades en total</div>
+                  </div>
                 </div>
               </div>
 
