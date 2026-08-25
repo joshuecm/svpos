@@ -5,6 +5,7 @@ import RolesModal from "./RolesModal.jsx";
 import ProductosModal from "./ProductosModal.jsx";
 import ClientesModal from "./ClientesModal.jsx";
 import AbonosModal from "./AbonosModal.jsx";
+import CreditosModal from "./CreditosModal.jsx";
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
@@ -790,6 +791,7 @@ export default function POS({ usuario, onLogout }) {
   const [showProductosModal,setShowProductosModal]= useState(false);
   const [showClientesModal, setShowClientesModal] = useState(false);
   const [showAbonosModal,   setShowAbonosModal]   = useState(false);
+  const [showCreditosModal, setShowCreditosModal] = useState(false);
   const [showSidebar,       setShowSidebar]       = useState(false);
   const [showCart,          setShowCart]          = useState(false);
   const [lastTicket,        setLastTicket]        = useState(null);
@@ -960,7 +962,7 @@ export default function POS({ usuario, onLogout }) {
           </button>
         ))}
         {puedo("recibir_abonos")&&(
-          <button onClick={()=>{setShowAbonosModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textMd,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+          <button onClick={()=>{setShowCreditosModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textMd,fontSize:14,cursor:"pointer",textAlign:"left"}}>
             <span style={{fontSize:18}}>💳</span>Pago Créditos
           </button>
         )}
@@ -1387,8 +1389,8 @@ export default function POS({ usuario, onLogout }) {
       {showClientesModal&&puedo("catalogo_clientes")&&(
         <ClientesModal isMobile={isMobile} onClose={()=>{setShowClientesModal(false);loadAll();}}/>
       )}
-      {showAbonosModal&&puedo("recibir_abonos")&&(
-        <AbonosModal isMobile={isMobile} usuario={usuario} onClose={()=>{setShowAbonosModal(false);loadAll();}}/>
+      {showCreditosModal&&puedo("recibir_abonos")&&(
+        <CreditosModal isMobile={isMobile} usuario={usuario} onClose={()=>{setShowCreditosModal(false);loadAll();}}/>
       )}
       {showRolesModal&&puedo("gestion_usuarios")&&(
         <RolesModal
