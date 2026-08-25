@@ -218,6 +218,7 @@ function BancosModal({ bancos, setBancos, onClose, isMobile }) {
 
 // ─── PAY MODAL ────────────────────────────────────────────────────────────────
 function PayModal({ cartTotal, cartBase, cartIva, hayDesglose, cart, ivaConfig, bancos, customer, onClose, onComplete, isMobile }) {
+  const [modo,   setModo]   = useState("efectivo"); // "efectivo" | "credito"
   const [pagos,  setPagos]  = useState([{metodo:"cash", monto:"", extras:{}}]);
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState("");
@@ -225,73 +226,52 @@ function PayModal({ cartTotal, cartBase, cartIva, hayDesglose, cart, ivaConfig, 
   const bancosReceptores = bancos.filter(b=>b.tipo==="receptor");
   const bancosEmisores   = bancos.filter(b=>b.tipo==="emisor");
 
-  // ── Cálculo de totales
-  // El crédito NO requiere monto ingresado — toma el resto automáticamente
-  const totalEfectivo = pagos
-    .filter(p=>p.metodo!=="credit")
-    .reduce((s,p)=>s+parseFloat(p.monto||0),0);
+  const clienteTieneCredito = customer?.credito;
+  const creditoDisponible   = parseFloat(customer?.limite_credito||0) - parseFloat(customer?.saldo_credito||0);
 
-  const hayCredito     = pagos.some(p=>p.metodo==="credit");
-  const montoCredito   = hayCredito ? Math.max(0, cartTotal - totalEfectivo) : 0;
-  const totalPagado    = totalEfectivo + montoCredito;
-  const pendiente      = cartTotal - totalEfectivo; // lo que queda sin cubrir por efectivo/tarjeta/transferencia
-  const cashChange     = (p) => {
-    const otrosPagos = pagos.reduce((s,pg,idx)=>pg===p?s:s+parseFloat(pg.monto||0),0);
-    const necesita   = cartTotal - otrosPagos;
-    const recibido   = parseFloat(p.monto||0);
-    return recibido > necesita ? recibido - necesita : 0;
-  };
-
-  // Válido si: todo el monto está cubierto (efectivo>=pendiente o hay crédito que cubre el resto)
-  const pagoValido = hayCredito
-    ? totalEfectivo <= cartTotal  // con crédito, el efectivo no puede superar el total
-    : totalEfectivo >= cartTotal - 0.01;
+  // ── Cálculo normal (modo efectivo)
+  const totalPagado = pagos.reduce((s,p)=>s+parseFloat(p.monto||0),0);
+  const pagoValido  = totalPagado >= cartTotal - 0.01;
 
   const addPago    = () => setPagos(prev=>[...prev,{metodo:"transfer",monto:"",extras:{}}]);
   const removePago = (i) => setPagos(prev=>prev.filter((_,idx)=>idx!==i));
-
-  const updatePago  = (i,field,val) =>
-    setPagos(prev=>prev.map((p,idx)=>idx===i?{...p,[field]:val}:p));
-  const updateExtra = (i,field,val) =>
-    setPagos(prev=>prev.map((p,idx)=>idx===i?{...p,extras:{...p.extras,[field]:val}}:p));
+  const updatePago  = (i,f,v) => setPagos(prev=>prev.map((p,idx)=>idx===i?{...p,[f]:v}:p));
+  const updateExtra = (i,f,v) => setPagos(prev=>prev.map((p,idx)=>idx===i?{...p,extras:{...p.extras,[f]:v}}:p));
 
   const fillResto = (i) => {
-    const otros = pagos.reduce((s,p,idx)=>idx===i||p.metodo==="credit"?s:s+parseFloat(p.monto||0),0);
+    const otros = pagos.reduce((s,p,idx)=>idx===i?s:s+parseFloat(p.monto||0),0);
     const resto = cartTotal - otros;
-    if (resto > 0) updatePago(i,"monto",resto.toFixed(2));
+    if(resto>0) updatePago(i,"monto",resto.toFixed(2));
   };
 
-  const handleMetodoChange = (i, metodo) => {
-    // Solo puede haber un pago de crédito
-    if (metodo==="credit" && pagos.some((p,idx)=>idx!==i&&p.metodo==="credit")) return;
-    updatePago(i,"metodo",metodo);
-    // Si cambia a crédito, limpiar monto (no necesita)
-    if (metodo==="credit") updatePago(i,"monto","");
+  const cambioEfectivo = (i) => {
+    const otros = pagos.reduce((s,p,idx)=>idx===i?s:s+parseFloat(p.monto||0),0);
+    const necesita = cartTotal - otros;
+    const recibido = parseFloat(pagos[i].monto||0);
+    return recibido > necesita ? recibido - necesita : 0;
   };
 
   const confirm = async () => {
     setErr("");
-    // Validaciones
-    if (!customer?.credito && hayCredito) { setErr("El cliente no tiene crédito autorizado"); return; }
-    if (hayCredito && montoCredito > (parseFloat(customer?.limite_credito||0) - parseFloat(customer?.saldo_credito||0))) {
-      setErr(`Crédito insuficiente. Disponible: Q ${(parseFloat(customer?.limite_credito||0)-parseFloat(customer?.saldo_credito||0)).toFixed(2)}`); return;
+    if(modo==="credito") {
+      if(!clienteTieneCredito) { setErr("El cliente no tiene crédito autorizado"); return; }
+      if(cartTotal > creditoDisponible) { setErr(`Crédito insuficiente. Disponible: Q ${creditoDisponible.toFixed(2)}`); return; }
+      const pagosCredito = [{metodo:"credit", monto:cartTotal.toFixed(2), extras:{}}];
+      setSaving(true);
+      await onComplete(pagosCredito);
+      setSaving(false);
+      return;
     }
-    for (const p of pagos) {
-      if (p.metodo==="credit") continue; // crédito no necesita monto manual
-      if (!parseFloat(p.monto||0)) { setErr("Ingresa el monto de todos los pagos"); return; }
-      if (p.metodo==="transfer"&&!p.extras.banco_receptor_id) { setErr("Selecciona el banco receptor de la transferencia"); return; }
-      if (p.metodo==="transfer"&&!p.extras.autorizacion?.trim()) { setErr("Ingresa el número de autorización de la transferencia"); return; }
-      if (p.metodo==="card"&&!p.extras.tipo_tarjeta) { setErr("Selecciona el tipo de tarjeta"); return; }
+    // Modo efectivo — validaciones normales
+    for(const p of pagos) {
+      if(!parseFloat(p.monto||0)) { setErr("Ingresa el monto de todos los pagos"); return; }
+      if(p.metodo==="transfer"&&!p.extras.banco_receptor_id) { setErr("Selecciona el banco receptor"); return; }
+      if(p.metodo==="transfer"&&!p.extras.autorizacion?.trim()) { setErr("Ingresa el número de autorización"); return; }
+      if(p.metodo==="card"&&!p.extras.tipo_tarjeta) { setErr("Selecciona el tipo de tarjeta"); return; }
     }
-    if (!pagoValido && !hayCredito) { setErr("El monto ingresado es menor al total"); return; }
-
-    // Construir pagos finales — agregar monto al crédito
-    const pagosFinales = pagos.map(p =>
-      p.metodo==="credit" ? {...p, monto:montoCredito.toFixed(2)} : p
-    );
-
+    if(!pagoValido) { setErr("El monto ingresado es menor al total"); return; }
     setSaving(true);
-    await onComplete(pagosFinales);
+    await onComplete(pagos);
     setSaving(false);
   };
 
@@ -302,135 +282,180 @@ function PayModal({ cartTotal, cartBase, cartIva, hayDesglose, cart, ivaConfig, 
     {id:"otra",label:"Otra",icon:"💳"},
   ];
 
+  const fmt2 = (n) => `Q ${Number(n||0).toFixed(2)}`;
+
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,backdropFilter:"blur(3px)"}}>
-      <div style={{background:"#fff",border:"1px solid #E2E8F0",borderRadius:14,padding:24,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",maxHeight:"92vh",overflowY:"auto",width:isMobile?"95vw":"500px"}}>
+      <div style={{background:"#fff",border:"1px solid #E2E8F0",borderRadius:14,padding:24,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",maxHeight:"92vh",overflowY:"auto",width:isMobile?"95vw":"480px"}}>
 
         {/* Header */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-          <h2 style={{color:"#1E293B",fontSize:18,fontWeight:700,margin:0}}>💳 Cobrar Venta</h2>
+          <h2 style={{color:"#1E293B",fontSize:18,fontWeight:700,margin:0}}>
+            {modo==="credito"?"📋 Facturar a Crédito":"💳 Cobrar Venta"}
+          </h2>
           <button onClick={onClose} style={{background:"none",border:"none",color:"#94A3B8",fontSize:22,cursor:"pointer",padding:"4px 8px"}}>✕</button>
         </div>
 
-        {/* Total */}
-        <div style={{background:"#F8F9FB",borderRadius:10,padding:"14px 20px",marginBottom:16,textAlign:"center",border:"1px solid #E2E8F0"}}>
-          <div style={{color:"#94A3B8",fontSize:12,marginBottom:4}}>TOTAL A COBRAR</div>
-          <div style={{color:"#16A34A",fontSize:32,fontWeight:800}}>{`Q ${cartTotal.toFixed(2)}`}</div>
-          {hayDesglose&&<div style={{color:"#94A3B8",fontSize:12,marginTop:4}}>Base {`Q ${cartBase.toFixed(2)}`} + IVA {`Q ${cartIva.toFixed(2)}`}</div>}
-        </div>
-
-        {/* Pagos */}
-        <div style={{marginBottom:12}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <span style={{color:"#475569",fontSize:13,fontWeight:600}}>Forma{pagos.length>1?"s":""} de pago</span>
-            {pagos.length<3&&!hayCredito&&(
-              <button onClick={addPago} style={{background:"#fff",color:"#475569",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer"}}>+ Agregar método</button>
-            )}
+        {/* Selector de modo — solo si el cliente tiene crédito */}
+        {clienteTieneCredito&&(
+          <div style={{display:"flex",background:"#F8F9FB",borderRadius:10,padding:4,marginBottom:16,border:"1px solid #E2E8F0"}}>
+            <button onClick={()=>setModo("efectivo")} style={{
+              flex:1,padding:"9px 0",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,
+              background:modo==="efectivo"?"#fff":"transparent",
+              color:modo==="efectivo"?"#3B82F6":"#94A3B8",
+              boxShadow:modo==="efectivo"?"0 1px 4px rgba(0,0,0,0.08)":"none"
+            }}>💵 Cobrar ahora</button>
+            <button onClick={()=>setModo("credito")} style={{
+              flex:1,padding:"9px 0",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,
+              background:modo==="credito"?"#fff":"transparent",
+              color:modo==="credito"?"#D97706":"#94A3B8",
+              boxShadow:modo==="credito"?"0 1px 4px rgba(0,0,0,0.08)":"none"
+            }}>📋 Facturar a crédito</button>
           </div>
+        )}
 
-          {pagos.map((pago,i)=>(
-            <div key={i} style={{background:"#F8F9FB",borderRadius:10,padding:14,marginBottom:10,border:"1px solid #E2E8F0"}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                <span style={{color:"#475569",fontSize:12,fontWeight:600}}>Pago {pagos.length>1?i+1:""}</span>
-                {pagos.length>1&&<button onClick={()=>removePago(i)} style={{background:"#FEF2F2",color:"#DC2626",border:"1.5px solid #FECACA",borderRadius:8,padding:"3px 10px",fontSize:11,cursor:"pointer"}}>✕ Quitar</button>}
-              </div>
+        {/* ── MODO CRÉDITO ── */}
+        {modo==="credito"&&(
+          <div>
+            {/* Total de la factura */}
+            <div style={{background:"#FFF7ED",borderRadius:10,padding:"20px",marginBottom:16,textAlign:"center",border:"1px solid #FED7AA"}}>
+              <div style={{color:"#D97706",fontSize:12,fontWeight:600,marginBottom:6,letterSpacing:1}}>MONTO DE LA FACTURA</div>
+              <div style={{color:"#D97706",fontSize:40,fontWeight:800}}>{fmt2(cartTotal)}</div>
+              {hayDesglose&&<div style={{color:"#92400E",fontSize:12,marginTop:4}}>Base {fmt2(cartBase)} + IVA {fmt2(cartIva)}</div>}
+            </div>
 
-              {/* Método */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:12}}>
+            {/* Info crédito cliente */}
+            <div style={{background:"#F0FDF4",borderRadius:10,padding:16,marginBottom:16,border:"1px solid #BBF7D0"}}>
+              <div style={{color:"#16A34A",fontSize:13,fontWeight:600,marginBottom:10}}>👤 {customer?.nombre}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
                 {[
-                  {id:"cash",     label:"Efectivo",      icon:"💵"},
-                  {id:"card",     label:"Tarjeta",       icon:"💳"},
-                  {id:"transfer", label:"Transferencia", icon:"🏦"},
-                  {id:"credit",   label:"Crédito",       icon:"📋"},
-                ].map(m=>(
-                  <button key={m.id} onClick={()=>handleMetodoChange(i,m.id)}
-                    disabled={m.id==="credit"&&pagos.some((p,idx)=>idx!==i&&p.metodo==="credit")}
-                    style={{
-                      padding:"8px 4px",borderRadius:8,cursor:"pointer",textAlign:"center",
-                      border:`1.5px solid ${pago.metodo===m.id?"#3B82F6":"#E2E8F0"}`,
-                      background:pago.metodo===m.id?"#EFF6FF":"#fff",
-                      color:pago.metodo===m.id?"#3B82F6":"#475569",
-                      fontSize:11,fontWeight:pago.metodo===m.id?600:400,
-                      opacity:m.id==="credit"&&pagos.some((p,idx)=>idx!==i&&p.metodo==="credit")?0.4:1,
-                    }}>
-                    <div style={{fontSize:18}}>{m.icon}</div>
-                    <div>{m.label}</div>
-                  </button>
+                  {label:"Límite",     value:fmt2(customer?.limite_credito), color:"#475569"},
+                  {label:"Usado",      value:fmt2(customer?.saldo_credito),  color:"#DC2626"},
+                  {label:"Disponible", value:fmt2(creditoDisponible),        color:"#16A34A"},
+                ].map(s=>(
+                  <div key={s.label} style={{background:"#fff",borderRadius:8,padding:"8px",textAlign:"center",border:"1px solid #BBF7D0"}}>
+                    <div style={{color:s.color,fontSize:14,fontWeight:700}}>{s.value}</div>
+                    <div style={{color:"#94A3B8",fontSize:10,marginTop:2}}>{s.label}</div>
+                  </div>
                 ))}
               </div>
+              {/* Barra crédito */}
+              <div style={{height:6,background:"#DCF8E8",borderRadius:3,marginBottom:6}}>
+                <div style={{
+                  height:6,borderRadius:3,transition:"width 0.3s",
+                  width:`${Math.min((parseFloat(customer?.saldo_credito||0)/parseFloat(customer?.limite_credito||1))*100,100)}%`,
+                  background:creditoDisponible<cartTotal?"#DC2626":"#16A34A"
+                }}/>
+              </div>
+              {/* Nuevo saldo después de esta compra */}
+              <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:"1px solid #BBF7D0"}}>
+                <span style={{color:"#475569",fontSize:13}}>Saldo después de esta compra</span>
+                <span style={{
+                  color:parseFloat(customer?.saldo_credito||0)+cartTotal>parseFloat(customer?.limite_credito||0)?"#DC2626":"#D97706",
+                  fontSize:14,fontWeight:700
+                }}>{fmt2(parseFloat(customer?.saldo_credito||0)+cartTotal)}</span>
+              </div>
+            </div>
 
-              {/* CRÉDITO — sin monto, solo info */}
-              {pago.metodo==="credit"?(
-                <div>
-                  {!customer?.credito?(
-                    <div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"12px 14px",color:"#DC2626",fontSize:13}}>
-                      ⚠️ El cliente seleccionado no tiene crédito autorizado.
-                    </div>
-                  ):(
-                    <div style={{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,padding:"12px 14px"}}>
-                      <div style={{color:"#16A34A",fontSize:13,fontWeight:600,marginBottom:8}}>
-                        Cargo a crédito del cliente
-                      </div>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                        <span style={{color:"#475569",fontSize:12}}>Límite</span>
-                        <span style={{color:"#1E293B",fontSize:12}}>{`Q ${parseFloat(customer.limite_credito||0).toFixed(2)}`}</span>
-                      </div>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                        <span style={{color:"#475569",fontSize:12}}>Saldo actual</span>
-                        <span style={{color:"#DC2626",fontSize:12}}>{`Q ${parseFloat(customer.saldo_credito||0).toFixed(2)}`}</span>
-                      </div>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-                        <span style={{color:"#475569",fontSize:12}}>Disponible</span>
-                        <span style={{color:"#16A34A",fontSize:12,fontWeight:600}}>{`Q ${(parseFloat(customer.limite_credito||0)-parseFloat(customer.saldo_credito||0)).toFixed(2)}`}</span>
-                      </div>
-                      <div style={{borderTop:"1px solid #BBF7D0",paddingTop:8,display:"flex",justifyContent:"space-between"}}>
-                        <span style={{color:"#16A34A",fontSize:14,fontWeight:700}}>Monto a cargar</span>
-                        <span style={{color:"#16A34A",fontSize:20,fontWeight:800}}>{`Q ${montoCredito.toFixed(2)}`}</span>
-                      </div>
-                      <div style={{color:"#94A3B8",fontSize:11,marginTop:4,textAlign:"right"}}>
-                        Saldo después: {`Q ${(parseFloat(customer.saldo_credito||0)+montoCredito).toFixed(2)}`}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ):(
-                /* OTROS MÉTODOS — con monto */
-                <div style={{marginBottom:8}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                    <label style={{color:"#94A3B8",fontSize:11}}>Monto</label>
-                    <button onClick={()=>fillResto(i)} style={{color:"#3B82F6",background:"none",border:"none",cursor:"pointer",fontSize:11,fontWeight:600}}>
-                      Completar ({`Q ${Math.max(0,cartTotal-pagos.filter((_,idx)=>idx!==i&&pagos[idx]?.metodo!=="credit").reduce((s,p)=>s+parseFloat(p.monto||0),0)).toFixed(2)}`})
-                    </button>
+            {/* Aviso si no tiene crédito suficiente */}
+            {cartTotal > creditoDisponible&&(
+              <div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"10px 14px",color:"#DC2626",fontSize:13,marginBottom:16}}>
+                ⚠️ Crédito insuficiente. La compra (Q {cartTotal.toFixed(2)}) supera el disponible (Q {creditoDisponible.toFixed(2)}).
+              </div>
+            )}
+
+            {err&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"8px 14px",color:"#DC2626",fontSize:13,marginBottom:12}}>{err}</div>}
+
+            <button onClick={confirm} disabled={saving||cartTotal>creditoDisponible}
+              style={{background:"#D97706",color:"#fff",border:"none",borderRadius:10,padding:16,fontSize:17,fontWeight:700,cursor:"pointer",width:"100%",
+                opacity:saving||cartTotal>creditoDisponible?0.5:1}}>
+              {saving?"⏳ Procesando...":"📋 Confirmar factura a crédito"}
+            </button>
+          </div>
+        )}
+
+        {/* ── MODO EFECTIVO / NORMAL ── */}
+        {modo==="efectivo"&&(
+          <div>
+            {/* Total */}
+            <div style={{background:"#F8F9FB",borderRadius:10,padding:"14px 20px",marginBottom:16,textAlign:"center",border:"1px solid #E2E8F0"}}>
+              <div style={{color:"#94A3B8",fontSize:12,marginBottom:4}}>TOTAL A COBRAR</div>
+              <div style={{color:"#16A34A",fontSize:32,fontWeight:800}}>{fmt2(cartTotal)}</div>
+              {hayDesglose&&<div style={{color:"#94A3B8",fontSize:12,marginTop:4}}>Base {fmt2(cartBase)} + IVA {fmt2(cartIva)}</div>}
+            </div>
+
+            {/* Pagos */}
+            <div style={{marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <span style={{color:"#475569",fontSize:13,fontWeight:600}}>Forma{pagos.length>1?"s":""} de pago</span>
+                {pagos.length<3&&(
+                  <button onClick={addPago} style={{background:"#fff",color:"#475569",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"4px 12px",fontSize:12,cursor:"pointer"}}>+ Agregar método</button>
+                )}
+              </div>
+
+              {pagos.map((pago,i)=>(
+                <div key={i} style={{background:"#F8F9FB",borderRadius:10,padding:14,marginBottom:10,border:"1px solid #E2E8F0"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                    <span style={{color:"#475569",fontSize:12,fontWeight:600}}>Pago {pagos.length>1?i+1:""}</span>
+                    {pagos.length>1&&<button onClick={()=>removePago(i)} style={{background:"#FEF2F2",color:"#DC2626",border:"1.5px solid #FECACA",borderRadius:8,padding:"3px 10px",fontSize:11,cursor:"pointer"}}>✕ Quitar</button>}
                   </div>
-                  <input type="number" value={pago.monto}
-                    onChange={e=>updatePago(i,"monto",e.target.value)}
-                    placeholder="0.00" style={{background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"10px 14px",color:"#1E293B",fontSize:20,fontWeight:700,textAlign:"right",outline:"none",width:"100%",boxSizing:"border-box"}}/>
 
-                  {/* Botones rápidos efectivo */}
-                  {pago.metodo==="cash"&&(
-                    <div style={{display:"flex",gap:6,marginTop:8}}>
-                      {[50,100,200,500].map(amt=>(
-                        <button key={amt} onClick={()=>updatePago(i,"monto",String(amt))}
-                          style={{flex:1,padding:"7px 4px",background:"#F8F9FB",border:"1px solid #E2E8F0",borderRadius:6,color:"#475569",fontSize:12,cursor:"pointer",fontWeight:600}}>
-                          Q{amt}
-                        </button>
-                      ))}
+                  {/* Método — sin crédito en modo efectivo */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:12}}>
+                    {[
+                      {id:"cash",     label:"Efectivo",      icon:"💵"},
+                      {id:"card",     label:"Tarjeta",       icon:"💳"},
+                      {id:"transfer", label:"Transferencia", icon:"🏦"},
+                    ].map(m=>(
+                      <button key={m.id} onClick={()=>updatePago(i,"metodo",m.id)} style={{
+                        padding:"8px 4px",borderRadius:8,cursor:"pointer",textAlign:"center",
+                        border:`1.5px solid ${pago.metodo===m.id?"#3B82F6":"#E2E8F0"}`,
+                        background:pago.metodo===m.id?"#EFF6FF":"#fff",
+                        color:pago.metodo===m.id?"#3B82F6":"#475569",
+                        fontSize:12,fontWeight:pago.metodo===m.id?600:400
+                      }}>
+                        <div style={{fontSize:20}}>{m.icon}</div>
+                        <div>{m.label}</div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Monto */}
+                  <div style={{marginBottom:8}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                      <label style={{color:"#94A3B8",fontSize:11}}>Monto</label>
+                      <button onClick={()=>fillResto(i)} style={{color:"#3B82F6",background:"none",border:"none",cursor:"pointer",fontSize:11,fontWeight:600}}>
+                        Completar ({fmt2(Math.max(0,cartTotal-pagos.reduce((s,p,idx)=>idx===i?s:s+parseFloat(p.monto||0),0)))})
+                      </button>
                     </div>
-                  )}
-
-                  {/* Cambio efectivo */}
-                  {pago.metodo==="cash"&&cashChange(pago)>0&&(
-                    <div style={{marginTop:8,background:"#EFF6FF",borderRadius:8,padding:"8px 14px",border:"1px solid #BFDBFE"}}>
-                      <div style={{display:"flex",justifyContent:"space-between"}}>
-                        <span style={{color:"#475569",fontSize:13}}>Cambio</span>
-                        <span style={{color:"#3B82F6",fontWeight:700,fontSize:18}}>{`Q ${cashChange(pago).toFixed(2)}`}</span>
+                    <input type="number" value={pago.monto} onChange={e=>updatePago(i,"monto",e.target.value)}
+                      placeholder="0.00"
+                      style={{background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"10px 14px",color:"#1E293B",fontSize:22,fontWeight:700,textAlign:"right",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                    {/* Botones rápidos */}
+                    {pago.metodo==="cash"&&(
+                      <div style={{display:"flex",gap:6,marginTop:8}}>
+                        {[50,100,200,500].map(amt=>(
+                          <button key={amt} onClick={()=>updatePago(i,"monto",String(amt))}
+                            style={{flex:1,padding:"7px 4px",background:"#F8F9FB",border:"1px solid #E2E8F0",borderRadius:6,color:"#475569",fontSize:12,cursor:"pointer",fontWeight:600}}>
+                            Q{amt}
+                          </button>
+                        ))}
                       </div>
-                    </div>
-                  )}
+                    )}
+                    {/* Cambio */}
+                    {pago.metodo==="cash"&&cambioEfectivo(i)>0&&(
+                      <div style={{marginTop:8,background:"#EFF6FF",borderRadius:8,padding:"8px 14px",border:"1px solid #BFDBFE"}}>
+                        <div style={{display:"flex",justifyContent:"space-between"}}>
+                          <span style={{color:"#475569",fontSize:13}}>Cambio</span>
+                          <span style={{color:"#3B82F6",fontWeight:700,fontSize:18}}>{fmt2(cambioEfectivo(i))}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* TARJETA */}
                   {pago.metodo==="card"&&(
-                    <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:10}}>
+                    <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:8}}>
                       <div>
                         <label style={{color:"#94A3B8",fontSize:11,display:"block",marginBottom:6}}>Tipo de tarjeta *</label>
                         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
@@ -458,7 +483,7 @@ function PayModal({ cartTotal, cartBase, cartIva, hayDesglose, cart, ivaConfig, 
 
                   {/* TRANSFERENCIA */}
                   {pago.metodo==="transfer"&&(
-                    <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:10}}>
+                    <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:8}}>
                       {bancosReceptores.length===0?(
                         <div style={{background:"#FFF7ED",border:"1px solid #D97706",borderRadius:8,padding:"10px 14px",color:"#D97706",fontSize:13}}>
                           ⚠️ No hay bancos receptores configurados.
@@ -470,9 +495,7 @@ function PayModal({ cartTotal, cartBase, cartIva, hayDesglose, cart, ivaConfig, 
                             <select value={pago.extras.banco_receptor_id||""} onChange={e=>updateExtra(i,"banco_receptor_id",e.target.value)}
                               style={{background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"10px 14px",color:"#1E293B",fontSize:14,outline:"none",width:"100%",boxSizing:"border-box",cursor:"pointer"}}>
                               <option value="">Seleccionar banco...</option>
-                              {bancosReceptores.map(b=>(
-                                <option key={b.id} value={b.id}>{b.nombre}{b.numero_cuenta?` — ${b.numero_cuenta}`:""}</option>
-                              ))}
+                              {bancosReceptores.map(b=>(<option key={b.id} value={b.id}>{b.nombre}{b.numero_cuenta?` — ${b.numero_cuenta}`:""}</option>))}
                             </select>
                           </div>
                           {bancosEmisores.length>0&&(
@@ -481,9 +504,7 @@ function PayModal({ cartTotal, cartBase, cartIva, hayDesglose, cart, ivaConfig, 
                               <select value={pago.extras.banco_emisor_id||""} onChange={e=>updateExtra(i,"banco_emisor_id",e.target.value)}
                                 style={{background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"10px 14px",color:"#1E293B",fontSize:14,outline:"none",width:"100%",boxSizing:"border-box",cursor:"pointer"}}>
                                 <option value="">Seleccionar banco...</option>
-                                {bancosEmisores.map(b=>(
-                                  <option key={b.id} value={b.id}>{b.nombre}</option>
-                                ))}
+                                {bancosEmisores.map(b=>(<option key={b.id} value={b.id}>{b.nombre}</option>))}
                               </select>
                             </div>
                           )}
@@ -497,38 +518,37 @@ function PayModal({ cartTotal, cartBase, cartIva, hayDesglose, cart, ivaConfig, 
                     </div>
                   )}
                 </div>
+              ))}
+            </div>
+
+            {/* Resumen */}
+            <div style={{background:"#F8F9FB",borderRadius:10,padding:"12px 16px",marginBottom:12,border:"1px solid #E2E8F0"}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                <span style={{color:"#475569",fontSize:13}}>Total venta</span>
+                <span style={{color:"#1E293B",fontSize:13,fontWeight:600}}>{fmt2(cartTotal)}</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <span style={{color:"#475569",fontSize:13}}>Total pagado</span>
+                <span style={{color:totalPagado>=cartTotal?"#16A34A":"#D97706",fontSize:13,fontWeight:600}}>{fmt2(totalPagado)}</span>
+              </div>
+              {cartTotal-totalPagado>0.01&&(
+                <div style={{display:"flex",justifyContent:"space-between",paddingTop:6,borderTop:"1px solid #E2E8F0",marginTop:6}}>
+                  <span style={{color:"#DC2626",fontSize:13,fontWeight:600}}>Pendiente</span>
+                  <span style={{color:"#DC2626",fontSize:13,fontWeight:700}}>{fmt2(cartTotal-totalPagado)}</span>
+                </div>
               )}
+              {pagoValido&&<div style={{textAlign:"center",color:"#16A34A",fontSize:13,fontWeight:600,marginTop:6}}>✓ Pago completo</div>}
             </div>
-          ))}
-        </div>
 
-        {/* Resumen */}
-        <div style={{background:"#F8F9FB",borderRadius:10,padding:"12px 16px",marginBottom:12,border:"1px solid #E2E8F0"}}>
-          {pagos.filter(p=>p.metodo!=="credit").length>0&&(
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-              <span style={{color:"#475569",fontSize:13}}>Efectivo / tarjeta / transferencia</span>
-              <span style={{color:"#1E293B",fontSize:13,fontWeight:600}}>{`Q ${totalEfectivo.toFixed(2)}`}</span>
-            </div>
-          )}
-          {hayCredito&&(
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-              <span style={{color:"#475569",fontSize:13}}>Cargo a crédito</span>
-              <span style={{color:"#D97706",fontSize:13,fontWeight:600}}>{`Q ${montoCredito.toFixed(2)}`}</span>
-            </div>
-          )}
-          <div style={{display:"flex",justifyContent:"space-between",paddingTop:hayCredito||pagos.length>1?6:0,borderTop:hayCredito||pagos.length>1?"1px solid #E2E8F0":"none",marginTop:hayCredito||pagos.length>1?4:0}}>
-            <span style={{color:"#1E293B",fontSize:14,fontWeight:700}}>Total</span>
-            <span style={{color:"#16A34A",fontSize:16,fontWeight:800}}>{`Q ${cartTotal.toFixed(2)}`}</span>
+            {err&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"8px 14px",color:"#DC2626",fontSize:13,marginBottom:12}}>{err}</div>}
+
+            <button onClick={confirm} disabled={saving||!pagoValido}
+              style={{background:"#3B82F6",color:"#fff",border:"none",borderRadius:10,padding:16,fontSize:17,fontWeight:700,cursor:"pointer",width:"100%",
+                opacity:saving||!pagoValido?0.5:1}}>
+              {saving?"⏳ Guardando...":"✓ Confirmar Cobro"}
+            </button>
           </div>
-        </div>
-
-        {err&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"8px 14px",color:"#DC2626",fontSize:13,marginBottom:12}}>{err}</div>}
-
-        <button onClick={confirm} disabled={saving||(!pagoValido&&!hayCredito)||(hayCredito&&!customer?.credito)}
-          style={{background:"#3B82F6",color:"#fff",border:"none",borderRadius:10,padding:16,fontSize:17,fontWeight:700,cursor:"pointer",width:"100%",
-            opacity:saving||(!pagoValido&&!hayCredito)||(hayCredito&&!customer?.credito)?0.5:1}}>
-          {saving?"⏳ Guardando...":hayCredito&&totalEfectivo===0?"✓ Confirmar venta a crédito":"✓ Confirmar Cobro"}
-        </button>
+        )}
       </div>
     </div>
   );
