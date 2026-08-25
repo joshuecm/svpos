@@ -160,7 +160,7 @@ function TicketModal({ ticket, modoAdmin, onClose }) {
   );
 }
 
-export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=true }) {
+export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=true, verHistorial=true }) {
   const [paso,        setPaso]        = useState("lista");
   const [entradas,    setEntradas]    = useState([]);
   const [proveedores, setProveedores] = useState([]);
@@ -302,7 +302,7 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
   const ESTADO_COLOR = {pagada:C.green,pendiente:C.amber,parcial:C.blue};
   const ESTADO_BG    = {pagada:C.greenBg,pendiente:C.amberBg,parcial:C.blueBg};
   // Bodeguero no ve historial; admin ve últimas 10 o filtradas por búsqueda
-  const entradasVista = modoAdmin ? entradas : [];
+  const entradasVista = verHistorial ? entradas : [];
   const filtered = entradasVista
     .filter(e=>search===""||( e.numero_factura||"").toLowerCase().includes(search.toLowerCase()))
     .slice(0, search ? 50 : 10);
@@ -425,7 +425,7 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
                         <span style={{color:C.textMd,fontSize:12,fontWeight:600}}>Producto {i+1}</span>
                         {lineas.length>1&&<button onClick={()=>removeLinea(i)} style={{...BD,padding:"3px 10px",fontSize:11}}>✕ Quitar</button>}
                       </div>
-                      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"2fr 1fr 1fr",gap:10,marginBottom:8}}>
+                      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":modoAdmin?"2fr 1fr 1fr":"2fr 1fr",gap:10,marginBottom:8}}>
                         <div>
                           <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>Producto *</label>
                           <select value={linea.producto_id} onChange={e=>handleProductoChange(i,e.target.value)} style={{...IS,cursor:"pointer",fontSize:13}}>
@@ -437,10 +437,12 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
                           <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>Cantidad *</label>
                           <input type="number" value={linea.cantidad} onChange={e=>updateLinea(i,"cantidad",e.target.value)} min="1" style={{...IS,textAlign:"center",fontSize:16,fontWeight:700}}/>
                         </div>
-                        <div>
-                          <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>{modoAdmin?"Costo unitario *":"Costo (ref.)"}</label>
-                          <input type="number" value={linea.costo_unitario} onChange={e=>updateLinea(i,"costo_unitario",e.target.value)} disabled={!modoAdmin||linea.tomarUltimoCosto} min="0" step="0.01" style={{...IS,textAlign:"right",fontSize:15,fontWeight:700,color:C.green,opacity:(!modoAdmin||linea.tomarUltimoCosto)?0.6:1}}/>
-                        </div>
+                        {modoAdmin&&(
+                          <div>
+                            <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>Costo unitario *</label>
+                            <input type="number" value={linea.costo_unitario} onChange={e=>updateLinea(i,"costo_unitario",e.target.value)} disabled={linea.tomarUltimoCosto} min="0" step="0.01" style={{...IS,textAlign:"right",fontSize:15,fontWeight:700,color:C.green,opacity:linea.tomarUltimoCosto?0.6:1}}/>
+                          </div>
+                        )}
                       </div>
                       {modoAdmin&&prod&&(
                         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
