@@ -4,6 +4,7 @@ import UsuariosModal from "./UsuariosModal.jsx";
 import RolesModal from "./RolesModal.jsx";
 import ProductosModal from "./ProductosModal.jsx";
 import ClientesModal from "./ClientesModal.jsx";
+import AbonosModal from "./AbonosModal.jsx";
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
@@ -726,6 +727,7 @@ export default function POS({ usuario, onLogout }) {
   const [showRolesModal,    setShowRolesModal]    = useState(false);
   const [showProductosModal,setShowProductosModal]= useState(false);
   const [showClientesModal, setShowClientesModal] = useState(false);
+  const [showAbonosModal,   setShowAbonosModal]   = useState(false);
   const [showSidebar,       setShowSidebar]       = useState(false);
   const [showCart,          setShowCart]          = useState(false);
   const [lastTicket,        setLastTicket]        = useState(null);
@@ -887,6 +889,11 @@ export default function POS({ usuario, onLogout }) {
             <span style={{fontSize:18}}>{item.icon}</span>{item.label}
           </button>
         ))}
+        {puedo("recibir_abonos")&&(
+          <button onClick={()=>{setShowAbonosModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textMd,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:18}}>💳</span>Pago Créditos
+          </button>
+        )}
         <div style={{borderTop:`1px solid ${C.border}`,margin:"8px 0"}}/>
         {puedo("catalogo_productos")&&(
           <button onClick={()=>{setShowProductosModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
@@ -1144,23 +1151,69 @@ export default function POS({ usuario, onLogout }) {
   );
 
   const CajaTab = () => {
-    const totalEfectivo=salesHistory.filter(v=>v.metodo_pago==="cash"||v.metodo_pago?.includes("cash")).reduce((s,v)=>s+parseFloat(v.total||0),0);
-    const fondo=parseFloat(cajaInfo?.fondo||500);
+    const totalEfectivo = salesHistory.filter(v=>v.metodo_pago==="cash"||v.metodo_pago?.includes("cash")).reduce((s,v)=>s+parseFloat(v.total||0),0);
+    const totalTransfer = salesHistory.filter(v=>v.metodo_pago==="transfer"||v.metodo_pago?.includes("transfer")).reduce((s,v)=>s+parseFloat(v.total||0),0);
+    const totalTarjeta  = salesHistory.filter(v=>v.metodo_pago==="card"||v.metodo_pago?.includes("card")).reduce((s,v)=>s+parseFloat(v.total||0),0);
+    const totalCredito  = salesHistory.filter(v=>v.metodo_pago==="credit"||v.metodo_pago?.includes("credit")).reduce((s,v)=>s+parseFloat(v.total||0),0);
+    const fondo = parseFloat(cajaInfo?.fondo||500);
+    const totalVentas = totalEfectivo+totalTransfer+totalTarjeta+totalCredito;
     return(
       <div style={{padding:isMobile?12:24,paddingBottom:isMobile?80:24}}>
-        <h2 style={{color:C.text,fontSize:18,fontWeight:700,marginBottom:16}}>Caja</h2>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <h2 style={{color:C.text,fontSize:18,fontWeight:700}}>Corte de Caja</h2>
+          <button onClick={loadAll} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
+        </div>
+        {/* Resumen general */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
           {[
-            {label:"Fondo inicial",value:fmt(fondo),color:C.textMd},
-            {label:"Ventas efectivo",value:fmt(totalEfectivo),color:C.blue},
-            {label:"Total esperado",value:fmt(fondo+totalEfectivo),color:C.green},
-            {label:"Estado",value:cajaInfo?.estado==="abierta"?"Abierta":"Cerrada",color:cajaInfo?.estado==="abierta"?C.green:C.red},
+            {label:"Fondo inicial",   value:fmt(fondo),       color:C.textMd},
+            {label:"Total ventas",    value:fmt(totalVentas), color:C.blue},
+            {label:"Total esperado",  value:fmt(fondo+totalEfectivo), color:C.green},
+            {label:"Estado",          value:cajaInfo?.estado==="abierta"?"Abierta":"Cerrada", color:cajaInfo?.estado==="abierta"?C.green:C.red},
           ].map(item=>(
             <div key={item.label} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:16}}>
               <div style={{color:C.textSm,fontSize:12,marginBottom:4}}>{item.label}</div>
               <div style={{color:item.color,fontSize:20,fontWeight:700}}>{item.value}</div>
             </div>
           ))}
+        </div>
+        {/* Desglose por método */}
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:16,marginBottom:16}}>
+          <div style={{color:C.textMd,fontSize:13,fontWeight:600,marginBottom:12}}>Desglose por método de pago</div>
+          {[
+            {label:"💵 Efectivo",      value:totalEfectivo, note:"En caja física"},
+            {label:"🏦 Transferencia", value:totalTransfer, note:"En cuenta bancaria"},
+            {label:"💳 Tarjeta",       value:totalTarjeta,  note:"En terminal"},
+            {label:"📋 Crédito",       value:totalCredito,  note:"Por cobrar"},
+          ].map(item=>(
+            <div key={item.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
+              <div>
+                <span style={{color:C.text,fontSize:13}}>{item.label}</span>
+                <span style={{color:C.textSm,fontSize:11,marginLeft:8}}>{item.note}</span>
+              </div>
+              <span style={{color:item.value>0?C.text:C.textSm,fontWeight:item.value>0?700:400,fontSize:14}}>{fmt(item.value)}</span>
+            </div>
+          ))}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:10,marginTop:4}}>
+            <span style={{color:C.text,fontSize:14,fontWeight:700}}>Total ventas</span>
+            <span style={{color:C.blue,fontSize:16,fontWeight:800}}>{fmt(totalVentas)}</span>
+          </div>
+        </div>
+        {/* Efectivo esperado en caja */}
+        <div style={{background:C.greenBg,border:"1px solid #BBF7D0",borderRadius:10,padding:16}}>
+          <div style={{color:C.green,fontSize:13,fontWeight:600,marginBottom:8}}>💵 Efectivo esperado en caja</div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+            <span style={{color:C.textMd,fontSize:13}}>Fondo inicial</span>
+            <span style={{color:C.text,fontSize:13}}>{fmt(fondo)}</span>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+            <span style={{color:C.textMd,fontSize:13}}>Ventas en efectivo</span>
+            <span style={{color:C.text,fontSize:13}}>{fmt(totalEfectivo)}</span>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:"1px solid #BBF7D0",marginTop:4}}>
+            <span style={{color:C.green,fontSize:15,fontWeight:700}}>Total en caja</span>
+            <span style={{color:C.green,fontSize:18,fontWeight:800}}>{fmt(fondo+totalEfectivo)}</span>
+          </div>
         </div>
       </div>
     );
@@ -1263,6 +1316,9 @@ export default function POS({ usuario, onLogout }) {
       )}
       {showClientesModal&&puedo("catalogo_clientes")&&(
         <ClientesModal isMobile={isMobile} onClose={()=>{setShowClientesModal(false);loadAll();}}/>
+      )}
+      {showAbonosModal&&puedo("recibir_abonos")&&(
+        <AbonosModal isMobile={isMobile} usuario={usuario} onClose={()=>{setShowAbonosModal(false);loadAll();}}/>
       )}
       {showRolesModal&&puedo("gestion_usuarios")&&(
         <RolesModal
