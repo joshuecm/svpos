@@ -242,13 +242,14 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
   };
 
   const prepararConfirmacion = () => {
+    console.log("prepararConfirmacion ejecutado", {proveedorId, numFactura, lineas});
     setError("");
     if(!proveedorId){ setError("Selecciona el proveedor"); return; }
     if(!numFactura.trim()){ setError("Ingresa el número de factura"); return; }
     if(lineas.some(l=>!l.producto_id)){ setError("Selecciona el producto en todas las líneas"); return; }
     if(lineas.some(l=>!l.cantidad||parseFloat(l.cantidad)<=0)){ setError("La cantidad debe ser mayor a 0"); return; }
     if(modoAdmin&&lineas.some(l=>!l.costo_unitario||parseFloat(l.costo_unitario)<=0)){ setError("Ingresa el costo en todas las líneas"); return; }
-
+    console.log("Todas las validaciones pasaron, abriendo confirmación");
     const preview = lineas.map(l=>{
       const prod     = productos.find(p=>String(p.id)===String(l.producto_id));
       const cantidad = parseFloat(l.cantidad||0);
