@@ -830,6 +830,7 @@ export default function POS({ usuario, onLogout }) {
   const [showProductosModal,setShowProductosModal]= useState(false);
   const [showClientesModal, setShowClientesModal] = useState(false);
   const [showAbonosModal,   setShowAbonosModal]   = useState(false);
+  const [showCreditosModal, setShowCreditosModal] = useState(false);
   const [showPrecioModal,   setShowPrecioModal]   = useState(false);
   const [productoParaPrecio,setProductoParaPrecio]= useState(null);
   const [showSidebar,       setShowSidebar]       = useState(false);
