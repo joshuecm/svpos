@@ -553,8 +553,8 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
           </div>
         </div>
       </div>
-      </div>
 
+      </div>
       {/* ── CONFIRMACIÓN (zIndex 300) ── */}
       {showConfirm&&previewData&&(
         <ConfirmModal
