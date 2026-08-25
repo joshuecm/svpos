@@ -58,8 +58,9 @@ const GRUPOS = [
     label: "📦 Inventario y Productos",
     permisos: [
       {key:"catalogo_productos",  label:"Catálogo de productos",  desc:"Crear, editar y desactivar productos"},
-      {key:"entradas_inventario", label:"Entradas de inventario", desc:"Agregar stock y registrar compras"},
-      {key:"catalogo_clientes",   label:"Catálogo de clientes",   desc:"Crear y editar clientes"},
+      {key:"entradas_inventario",       label:"Entradas de inventario",       desc:"Agregar stock y registrar compras"},
+      {key:"ver_historial_entradas",     label:"Ver historial de entradas",     desc:"Ver el historial de compras registradas"},
+      {key:"catalogo_clientes",          label:"Catálogo de clientes",          desc:"Crear y editar clientes"},
     ]
   },
   {
