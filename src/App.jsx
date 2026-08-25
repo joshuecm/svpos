@@ -863,9 +863,19 @@ export default function POS({ usuario, onLogout }) {
         sb("caja","GET",null,"?order=id.desc&limit=1"),
         sb("bancos","GET",null,"?activo=eq.true&order=nombre"),
       ]);
-      setProducts(prods||[]); setCustomers(clients||[]);
+
+      // Cargar precios de todos los productos
+      const todosPrecios = await sb("producto_precios","GET",null,"?activo=eq.true&order=orden");
+      const prodsConPrecios = (prods||[]).map(p=>({
+        ...p,
+        _precios: (todosPrecios||[]).filter(pr=>pr.producto_id===p.id),
+      }));
+
+      setProducts(prodsConPrecios);
+      setCustomers(clients||[]);
       setCustomer(clients?.[0]||null);
-      setSalesHistory(ventas||[]); setCajaInfo(caja?.[0]||null);
+      setSalesHistory(ventas||[]);
+      setCajaInfo(caja?.[0]||null);
       setBancos(bcos||[]);
     } catch { notify("Error conectando a la base de datos","error"); }
     setLoading(false);
@@ -896,19 +906,14 @@ export default function POS({ usuario, onLogout }) {
   const hayDesglose= cartLines.some(l=>l.mostrarDesglose);
   const cartCount  = cart.reduce((s,i)=>s+i.qty,0);
 
-  const addToCart = async (p) => {
+  const addToCart = (p) => {
     if(p.stock<=0){notify("Sin stock disponible","error");return;}
-    // Verificar si tiene múltiples precios
-    try {
-      const precios = await sb("producto_precios","GET",null,`?producto_id=eq.${p.id}&activo=eq.true&order=orden`);
-      if(precios && precios.length>1) {
-        // Mostrar selector de precios
-        setProductoParaPrecio({...p, _precios:precios});
-        setShowPrecioModal(true);
-        return;
-      }
-    } catch {}
-    // Solo un precio — agregar directo
+    // Si tiene múltiples precios cargados, mostrar selector
+    if(p._precios && p._precios.length>1) {
+      setProductoParaPrecio(p);
+      setShowPrecioModal(true);
+      return;
+    }
     agregarAlCarrito(p, p.precio);
   };
 
