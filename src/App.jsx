@@ -331,17 +331,27 @@ function PayModal({ cartTotal, cartBase, cartIva, hayDesglose, cart, ivaConfig, 
               <div style={{marginBottom:12}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                   <label style={{color:C.textSm,fontSize:11}}>Monto</label>
-                  <button onClick={()=>fillResto(i)} style={{color:C.blue,background:"none",border:"none",cursor:"pointer",fontSize:11,fontWeight:600}}>
-                    Completar ({fmt(Math.max(0,cartTotal-pagos.reduce((s,p,idx)=>idx===i?s:s+parseFloat(p.monto||0),0)))})
-                  </button>
+                  {pago.metodo!=="credit"&&(
+                    <button onClick={()=>fillResto(i)} style={{color:C.blue,background:"none",border:"none",cursor:"pointer",fontSize:11,fontWeight:600}}>
+                      Completar ({fmt(Math.max(0,cartTotal-pagos.reduce((s,p,idx)=>idx===i?s:s+parseFloat(p.monto||0),0)))})
+                    </button>
+                  )}
                 </div>
-                <input
-                  type="number"
-                  value={pago.monto}
-                  onChange={e=>updatePago(i,"monto",e.target.value)}
-                  placeholder="0.00"
-                  style={{...IS,fontSize:20,fontWeight:700,textAlign:"right"}}
-                />
+                {pago.metodo==="credit"?(
+                  // Crédito: monto fijo, no editable
+                  <div style={{background:C.greenBg,border:`1.5px solid #BBF7D0`,borderRadius:8,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{color:C.textMd,fontSize:13}}>Cargo a crédito del cliente</span>
+                    <span style={{color:C.green,fontSize:22,fontWeight:800}}>{fmt(parseFloat(pago.monto||0))}</span>
+                  </div>
+                ):(
+                  <input
+                    type="number"
+                    value={pago.monto}
+                    onChange={e=>updatePago(i,"monto",e.target.value)}
+                    placeholder="0.00"
+                    style={{...IS,fontSize:20,fontWeight:700,textAlign:"right"}}
+                  />
+                )}
                 {/* Botones rápidos efectivo */}
                 {pago.metodo==="cash"&&(
                   <div style={{display:"flex",gap:6,marginTop:8}}>
