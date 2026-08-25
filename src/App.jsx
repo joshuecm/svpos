@@ -761,6 +761,45 @@ function CustomerModal({ customers, customer, onSelect, onClose, isMobile }) {
   );
 }
 
+// ─── PRECIO MODAL ─────────────────────────────────────────────────────────────
+function PrecioModal({ producto, onSelect, onClose, isMobile }) {
+  if(!producto) return null;
+  const CONDICION_LABEL = {unit:"Precio base",gte:"≥ Mayor o igual a",eq:"= Exactamente",multiple:"× Múltiplo de"};
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,backdropFilter:"blur(3px)"}}>
+      <div style={{background:"#fff",border:"1px solid #E2E8F0",borderRadius:14,padding:24,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",width:isMobile?"95vw":"400px",maxHeight:"92vh",overflowY:"auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div>
+            <h2 style={{color:"#1E293B",fontSize:17,fontWeight:700,margin:0}}>{producto.nombre}</h2>
+            <div style={{color:"#94A3B8",fontSize:12,marginTop:2}}>Selecciona el precio a aplicar</div>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"#94A3B8",fontSize:22,cursor:"pointer"}}>✕</button>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {producto._precios.map((p,i)=>(
+            <button key={p.id} onClick={()=>onSelect(parseFloat(p.precio))}
+              style={{padding:"14px 16px",borderRadius:10,cursor:"pointer",textAlign:"left",border:`2px solid ${i===0?"#3B82F6":"#E2E8F0"}`,background:i===0?"#EFF6FF":"#F8F9FB",transition:"all 0.15s"}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor="#3B82F6";e.currentTarget.style.background="#EFF6FF";}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=i===0?"#3B82F6":"#E2E8F0";e.currentTarget.style.background=i===0?"#EFF6FF":"#F8F9FB";}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <span style={{color:"#1E293B",fontWeight:600,fontSize:15}}>{p.nombre}</span>
+                <span style={{color:"#16A34A",fontWeight:800,fontSize:22}}>Q {parseFloat(p.precio).toFixed(2)}</span>
+              </div>
+              {p.condicion!=="unit"&&(
+                <div style={{color:"#3B82F6",fontSize:12}}>{CONDICION_LABEL[p.condicion]} {p.cantidad} unidades</div>
+              )}
+              {i===0&&<div style={{color:"#94A3B8",fontSize:11,marginTop:2}}>Precio unitario estándar</div>}
+            </button>
+          ))}
+        </div>
+        <div style={{marginTop:16,textAlign:"center"}}>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"#94A3B8",fontSize:13,cursor:"pointer"}}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL
 // ══════════════════════════════════════════════════════════════════════════════
@@ -791,7 +830,8 @@ export default function POS({ usuario, onLogout }) {
   const [showProductosModal,setShowProductosModal]= useState(false);
   const [showClientesModal, setShowClientesModal] = useState(false);
   const [showAbonosModal,   setShowAbonosModal]   = useState(false);
-  const [showCreditosModal, setShowCreditosModal] = useState(false);
+  const [showPrecioModal,   setShowPrecioModal]   = useState(false);
+  const [productoParaPrecio,setProductoParaPrecio]= useState(null);
   const [showSidebar,       setShowSidebar]       = useState(false);
   const [showCart,          setShowCart]          = useState(false);
   const [lastTicket,        setLastTicket]        = useState(null);
@@ -856,17 +896,34 @@ export default function POS({ usuario, onLogout }) {
   const hayDesglose= cartLines.some(l=>l.mostrarDesglose);
   const cartCount  = cart.reduce((s,i)=>s+i.qty,0);
 
-  const addToCart = (p) => {
+  const addToCart = async (p) => {
     if(p.stock<=0){notify("Sin stock disponible","error");return;}
+    // Verificar si tiene múltiples precios
+    try {
+      const precios = await sb("producto_precios","GET",null,`?producto_id=eq.${p.id}&activo=eq.true&order=orden`);
+      if(precios && precios.length>1) {
+        // Mostrar selector de precios
+        setProductoParaPrecio({...p, _precios:precios});
+        setShowPrecioModal(true);
+        return;
+      }
+    } catch {}
+    // Solo un precio — agregar directo
+    agregarAlCarrito(p, p.precio);
+  };
+
+  const agregarAlCarrito = (p, precioSeleccionado) => {
     setCart(prev=>{
-      const ex=prev.find(i=>i.id===p.id);
+      const ex=prev.find(i=>i.id===p.id&&i.precio===precioSeleccionado);
       if(ex){
         if(ex.qty>=p.stock){notify("Stock insuficiente","error");return prev;}
-        return prev.map(i=>i.id===p.id?{...i,qty:i.qty+1}:i);
+        return prev.map(i=>i.id===p.id&&i.precio===precioSeleccionado?{...i,qty:i.qty+1}:i);
       }
-      return [...prev,{...p,qty:1}];
+      return [...prev,{...p,precio:precioSeleccionado,qty:1}];
     });
     if(isMobile) notify(`${p.nombre} agregado`);
+    setShowPrecioModal(false);
+    setProductoParaPrecio(null);
   };
 
   const updateQty = (id,delta) => {
@@ -1364,6 +1421,14 @@ export default function POS({ usuario, onLogout }) {
       {isMobile&&showCart&&<CartPanel/>}
 
       {/* Modales externos — sin bug de foco */}
+      {showPrecioModal&&productoParaPrecio&&(
+        <PrecioModal
+          producto={productoParaPrecio}
+          onSelect={(precio)=>agregarAlCarrito(productoParaPrecio,precio)}
+          onClose={()=>{setShowPrecioModal(false);setProductoParaPrecio(null);}}
+          isMobile={isMobile}
+        />
+      )}
       {showPayModal&&(
         <PayModal
           cartTotal={cartTotal} cartBase={cartBase} cartIva={cartIva}
