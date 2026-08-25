@@ -523,6 +523,5 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
         />
       )}
     </div>
-  </div>
   );
 }
