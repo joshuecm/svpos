@@ -6,6 +6,8 @@ import ProductosModal from "./ProductosModal.jsx";
 import ClientesModal from "./ClientesModal.jsx";
 import AbonosModal from "./AbonosModal.jsx";
 import CreditosModal from "./CreditosModal.jsx";
+import ProveedoresModal from "./ProveedoresModal.jsx";
+import InventarioModal from "./InventarioModal.jsx";
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
@@ -830,7 +832,10 @@ export default function POS({ usuario, onLogout }) {
   const [showProductosModal,setShowProductosModal]= useState(false);
   const [showClientesModal, setShowClientesModal] = useState(false);
   const [showAbonosModal,   setShowAbonosModal]   = useState(false);
-  const [showCreditosModal, setShowCreditosModal] = useState(false);
+  const [showCreditosModal,    setShowCreditosModal]    = useState(false);
+  const [showProveedoresModal, setShowProveedoresModal] = useState(false);
+  const [showInventarioModal,  setShowInventarioModal]  = useState(false);
+  const [modoInventarioAdmin,  setModoInventarioAdmin]  = useState(true);
   const [showPrecioModal,   setShowPrecioModal]   = useState(false);
   const [productoParaPrecio,setProductoParaPrecio]= useState(null);
   const [showSidebar,       setShowSidebar]       = useState(false);
@@ -1064,13 +1069,18 @@ export default function POS({ usuario, onLogout }) {
           </button>
         )}
         {puedo("entradas_inventario")&&(
-          <button onClick={()=>notify("Módulo Inventario — próximamente","info")} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+          <button onClick={()=>{setModoInventarioAdmin(puedo("catalogo_productos"));setShowInventarioModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
             <span style={{fontSize:18}}>📊</span>Inventario
           </button>
         )}
         {puedo("catalogo_clientes")&&(
           <button onClick={()=>{setShowClientesModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
             <span style={{fontSize:18}}>👤</span>Clientes
+          </button>
+        )}
+        {puedo("catalogo_proveedores")&&(
+          <button onClick={()=>{setShowProveedoresModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:18}}>🏭</span>Proveedores
           </button>
         )}
         {puedo("reportes")&&(
@@ -1487,6 +1497,12 @@ export default function POS({ usuario, onLogout }) {
       )}
       {showClientesModal&&puedo("catalogo_clientes")&&(
         <ClientesModal isMobile={isMobile} onClose={()=>{setShowClientesModal(false);loadAll();}}/>
+      )}
+      {showInventarioModal&&puedo("entradas_inventario")&&(
+        <InventarioModal isMobile={isMobile} usuario={usuario} modoAdmin={modoInventarioAdmin} onClose={()=>{setShowInventarioModal(false);loadAll();}}/>
+      )}
+      {showProveedoresModal&&puedo("catalogo_proveedores")&&(
+        <ProveedoresModal isMobile={isMobile} onClose={()=>setShowProveedoresModal(false)}/>
       )}
       {showCreditosModal&&puedo("recibir_abonos")&&(
         <CreditosModal isMobile={isMobile} usuario={usuario} onClose={()=>{setShowCreditosModal(false);loadAll();}}/>
