@@ -244,6 +244,17 @@ function PayModal({ cartTotal, cartBase, cartIva, hayDesglose, cart, ivaConfig, 
     if (resto > 0) updatePago(i,"monto",resto.toFixed(2));
   };
 
+  // Auto-completar monto cuando se selecciona crédito
+  const handleMetodoChange = (i, metodo) => {
+    updatePago(i,"metodo",metodo);
+    // Si es crédito, auto-completar el monto restante
+    if (metodo==="credit") {
+      const otros = pagos.reduce((s,p,idx)=>idx===i?s:s+parseFloat(p.monto||0),0);
+      const resto = cartTotal - otros;
+      if (resto > 0) setTimeout(()=>updatePago(i,"monto",resto.toFixed(2)),50);
+    }
+  };
+
   // Cambio de efectivo para un pago específico
   const cambioEfectivo = (i) => {
     const otros = pagos.reduce((s,p,idx)=>idx===i?s:s+parseFloat(p.monto||0),0);
@@ -302,7 +313,7 @@ function PayModal({ cartTotal, cartBase, cartIva, hayDesglose, cart, ivaConfig, 
               {/* Método */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:12}}>
                 {METODOS.map(m=>(
-                  <button key={m.id} onClick={()=>updatePago(i,"metodo",m.id)} style={{
+                  <button key={m.id} onClick={()=>handleMetodoChange(i,m.id)} style={{
                     padding:"8px 4px",borderRadius:8,cursor:"pointer",textAlign:"center",
                     border:`1.5px solid ${pago.metodo===m.id?C.blue:C.border}`,
                     background:pago.metodo===m.id?C.blueBg:C.card,
@@ -617,23 +628,70 @@ function ConfigModal({ ivaConfig, onSave, onClose, isMobile }) {
 
 // ─── CUSTOMER MODAL ───────────────────────────────────────────────────────────
 function CustomerModal({ customers, customer, onSelect, onClose, isMobile }) {
+  const [search, setSearch] = useState("");
+
+  const filtered = customers.filter(c => {
+    if (search==="") return true;
+    const q = search.toLowerCase();
+    return (
+      c.nombre.toLowerCase().includes(q) ||
+      (c.nit||"").toLowerCase().includes(q) ||
+      (c.telefono||"").includes(q)
+    );
+  });
+
   return (
     <div style={OV}>
-      <div style={{...MW,width:isMobile?"95vw":"400px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+      <div style={{...MW,width:isMobile?"95vw":"420px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <h2 style={{color:C.text,fontSize:16,fontWeight:700,margin:0}}>Seleccionar Cliente</h2>
           <button onClick={onClose} style={{background:"none",border:"none",color:C.textSm,fontSize:22,cursor:"pointer",padding:"4px 8px"}}>✕</button>
         </div>
-        {customers.map(c=>(
-          <button key={c.id} onClick={()=>onSelect(c)}
-            style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"14px",marginBottom:8,background:customer?.id===c.id?C.blueBg:C.panel,border:`1.5px solid ${customer?.id===c.id?C.blue:C.border}`,borderRadius:8,cursor:"pointer"}}>
-            <div style={{textAlign:"left"}}>
-              <div style={{color:C.text,fontSize:14,fontWeight:600}}>{c.nombre}</div>
-              <div style={{color:C.textMd,fontSize:12}}>NIT: {c.nit}</div>
+
+        {/* Búsqueda */}
+        <input
+          value={search}
+          onChange={e=>setSearch(e.target.value)}
+          placeholder="🔍 Buscar por nombre, NIT o teléfono..."
+          autoFocus
+          style={{background:C.panel,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14,outline:"none",width:"100%",boxSizing:"border-box",marginBottom:12}}
+        />
+
+        <div style={{maxHeight:360,overflowY:"auto"}}>
+          {filtered.length===0?(
+            <div style={{textAlign:"center",color:C.textSm,padding:24}}>
+              <div style={{fontSize:28,marginBottom:8}}>👤</div>
+              <div>No se encontraron clientes</div>
             </div>
-            {c.credito&&<span style={{background:C.greenBg,color:C.green,fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600}}>CRÉDITO</span>}
-          </button>
-        ))}
+          ):filtered.map(c=>(
+            <button key={c.id} onClick={()=>onSelect(c)}
+              style={{
+                display:"flex",alignItems:"center",justifyContent:"space-between",
+                width:"100%",padding:"12px 14px",marginBottom:8,
+                background:customer?.id===c.id?C.blueBg:C.panel,
+                border:`1.5px solid ${customer?.id===c.id?C.blue:C.border}`,
+                borderRadius:8,cursor:"pointer"
+              }}>
+              <div style={{textAlign:"left"}}>
+                <div style={{color:C.text,fontSize:14,fontWeight:600}}>{c.nombre}</div>
+                <div style={{color:C.textMd,fontSize:12}}>
+                  NIT: {c.nit}
+                  {c.telefono&&` · 📞 ${c.telefono}`}
+                </div>
+              </div>
+              <div style={{display:"flex",gap:6,flexShrink:0}}>
+                {c.credito&&(
+                  <div style={{textAlign:"right"}}>
+                    <span style={{background:C.greenBg,color:C.green,fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,display:"block",marginBottom:2}}>CRÉDITO</span>
+                    <span style={{color:C.green,fontSize:11}}>
+                      Disp: Q {(parseFloat(c.limite_credito||0)-parseFloat(c.saldo_credito||0)).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -1229,3 +1287,4 @@ export default function POS({ usuario, onLogout }) {
     </div>
   );
 }
+
