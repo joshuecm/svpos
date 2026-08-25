@@ -8,6 +8,7 @@ import AbonosModal from "./AbonosModal.jsx";
 import CreditosModal from "./CreditosModal.jsx";
 import ProveedoresModal from "./ProveedoresModal.jsx";
 import InventarioModal from "./InventarioModal.jsx";
+import CombosModal from "./CombosModal.jsx";
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
@@ -835,6 +836,8 @@ export default function POS({ usuario, onLogout }) {
   const [showCreditosModal,    setShowCreditosModal]    = useState(false);
   const [showProveedoresModal, setShowProveedoresModal] = useState(false);
   const [showInventarioModal,  setShowInventarioModal]  = useState(false);
+  const [showCombosModal,      setShowCombosModal]      = useState(false);
+  const [combos,               setCombos]               = useState([]);
   const [modoInventarioAdmin,  setModoInventarioAdmin]  = useState(true);
   const [showPrecioModal,   setShowPrecioModal]   = useState(false);
   const [productoParaPrecio,setProductoParaPrecio]= useState(null);
@@ -862,25 +865,43 @@ export default function POS({ usuario, onLogout }) {
   async function loadAll() {
     setLoading(true);
     try {
-      const [prods,clients,ventas,caja,bcos,cats]=await Promise.all([
+      const [prods,clients,ventas,caja,bcos,cats,cbs]=await Promise.all([
         sb("productos","GET",null,"?activo=eq.true&order=categoria,nombre"),
         sb("clientes","GET",null,"?activo=eq.true&order=nombre"),
         sb("ventas","GET",null,"?order=created_at.desc&limit=50"),
         sb("caja","GET",null,"?order=id.desc&limit=1"),
         sb("bancos","GET",null,"?activo=eq.true&order=nombre"),
         sb("categorias","GET",null,"?activo=eq.true&order=nombre"),
+        sb("combos","GET",null,"?activo=eq.true&order=nombre"),
       ]);
 
-      // Cargar precios de todos los productos
-      const todosPrecios = await sb("producto_precios","GET",null,"?activo=eq.true&order=orden");
-      const catIconMap   = Object.fromEntries((cats||[]).map(c=>[c.nombre,c.icono||"📦"]));
+      const todosPrecios   = await sb("producto_precios","GET",null,"?activo=eq.true&order=orden");
+      const todosComp      = await sb("combo_productos","GET",null,"?order=combo_id");
+      const catIconMap     = Object.fromEntries((cats||[]).map(c=>[c.nombre,c.icono||"📦"]));
+
       const prodsConPrecios = (prods||[]).map(p=>({
         ...p,
         _precios: (todosPrecios||[]).filter(pr=>pr.producto_id===p.id),
         _icono:   catIconMap[p.categoria]||"📦",
       }));
 
+      // Calcular stock de combos basado en componentes
+      const combosConStock = (cbs||[]).map(c=>{
+        const comp = (todosComp||[]).filter(cp=>cp.combo_id===c.id);
+        const stocks = comp.map(cp=>{
+          const prod = (prods||[]).find(p=>p.id===cp.producto_id);
+          return prod ? Math.floor(parseFloat(prod.stock||0)/parseFloat(cp.cantidad||1)) : 0;
+        });
+        const stockPorComp = stocks.length ? Math.min(...stocks) : 0;
+        const stock = c.stock_max ? Math.min(stockPorComp, parseInt(c.stock_max)) : stockPorComp;
+        return {...c, stock, _comp:comp, _esCombo:true, _icono:"🎁",
+          categoria: c.categoria||"Promociones",
+          impuesto: parseFloat(c.impuesto||0),
+        };
+      });
+
       setProducts(prodsConPrecios);
+      setCombos(combosConStock);
       setCustomers(clients||[]);
       setCustomer(clients?.[0]||null);
       setSalesHistory(ventas||[]);
@@ -903,8 +924,11 @@ export default function POS({ usuario, onLogout }) {
   };
 
   const categories = ["Todas",...new Set(products.map(p=>p.categoria))];
-  const filtered = products.filter(p=>{
-    const ms=search===""||p.nombre.toLowerCase().includes(search.toLowerCase())||p.sku.toLowerCase().includes(search.toLowerCase())||(p.codigo_barras||"").includes(search);
+  const filtered = [
+    ...products,
+    ...combos,
+  ].filter(p=>{
+    const ms=search===""||p.nombre.toLowerCase().includes(search.toLowerCase())||(p.sku||"").toLowerCase().includes(search.toLowerCase())||(p.codigo_barras||"").includes(search);
     return ms&&(category==="Todas"||p.categoria===category);
   });
 
@@ -1009,7 +1033,22 @@ export default function POS({ usuario, onLogout }) {
         subtotal:calcLine(item,ivaConfig).total,
       })));
 
-      for(const item of cart) await sb(`productos?id=eq.${item.id}`,"PATCH",{stock:item.stock-item.qty});
+      // Actualizar stock — productos normales y componentes de combos
+      for(const item of cart) {
+        if(item._esCombo) {
+          // Descontar cada componente del combo
+          for(const comp of (item._comp||[])) {
+            const prod = products.find(p=>p.id===comp.producto_id);
+            if(prod) {
+              await sb(`productos?id=eq.${comp.producto_id}`,"PATCH",{
+                stock: Math.max(0, parseFloat(prod.stock||0) - parseFloat(comp.cantidad||1)*item.qty)
+              });
+            }
+          }
+        } else {
+          await sb(`productos?id=eq.${item.id}`,"PATCH",{stock:item.stock-item.qty});
+        }
+      }
 
       // ── Si hay crédito, actualizar saldo del cliente
       if(hayCredito && customer?.id) {
@@ -1079,6 +1118,11 @@ export default function POS({ usuario, onLogout }) {
         {puedo("catalogo_clientes")&&(
           <button onClick={()=>{setShowClientesModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
             <span style={{fontSize:18}}>👤</span>Clientes
+          </button>
+        )}
+        {puedo("gestion_combos")&&(
+          <button onClick={()=>{setShowCombosModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:18}}>🎁</span>Combos
           </button>
         )}
         {puedo("catalogo_proveedores")&&(
@@ -1500,6 +1544,9 @@ export default function POS({ usuario, onLogout }) {
       )}
       {showClientesModal&&puedo("catalogo_clientes")&&(
         <ClientesModal isMobile={isMobile} onClose={()=>{setShowClientesModal(false);loadAll();}}/>
+      )}
+      {showCombosModal&&puedo("gestion_combos")&&(
+        <CombosModal isMobile={isMobile} onClose={()=>{setShowCombosModal(false);loadAll();}}/>
       )}
       {showInventarioModal&&puedo("entradas_inventario")&&(
         <InventarioModal isMobile={isMobile} usuario={usuario} modoAdmin={puedo("catalogo_productos")} verHistorial={puedo("ver_historial_entradas")} onClose={()=>{setShowInventarioModal(false);loadAll();}}/>
