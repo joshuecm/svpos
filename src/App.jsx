@@ -862,19 +862,22 @@ export default function POS({ usuario, onLogout }) {
   async function loadAll() {
     setLoading(true);
     try {
-      const [prods,clients,ventas,caja,bcos]=await Promise.all([
+      const [prods,clients,ventas,caja,bcos,cats]=await Promise.all([
         sb("productos","GET",null,"?activo=eq.true&order=categoria,nombre"),
         sb("clientes","GET",null,"?activo=eq.true&order=nombre"),
         sb("ventas","GET",null,"?order=created_at.desc&limit=50"),
         sb("caja","GET",null,"?order=id.desc&limit=1"),
         sb("bancos","GET",null,"?activo=eq.true&order=nombre"),
+        sb("categorias","GET",null,"?activo=eq.true&order=nombre"),
       ]);
 
       // Cargar precios de todos los productos
       const todosPrecios = await sb("producto_precios","GET",null,"?activo=eq.true&order=orden");
+      const catIconMap   = Object.fromEntries((cats||[]).map(c=>[c.nombre,c.icono||"📦"]));
       const prodsConPrecios = (prods||[]).map(p=>({
         ...p,
         _precios: (todosPrecios||[]).filter(pr=>pr.producto_id===p.id),
+        _icono:   catIconMap[p.categoria]||"📦",
       }));
 
       setProducts(prodsConPrecios);
@@ -1286,7 +1289,7 @@ export default function POS({ usuario, onLogout }) {
                 style={{background:C.card,border:`1.5px solid ${C.border}`,borderRadius:10,padding:isMobile?12:14,cursor:p.stock>0?"pointer":"not-allowed",textAlign:"left",opacity:p.stock===0?0.45:1,boxShadow:"0 1px 3px rgba(0,0,0,0.05)",transition:"all 0.15s"}}
                 onMouseEnter={e=>{if(p.stock>0){e.currentTarget.style.borderColor=C.blue;e.currentTarget.style.boxShadow="0 4px 12px rgba(59,130,246,0.15)";}}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.05)";}}>
-                <div style={{fontSize:isMobile?28:26,marginBottom:6}}>{CAT_ICONS[p.categoria]||"📦"}</div>
+                <div style={{fontSize:isMobile?28:26,marginBottom:6}}>{p._icono||CAT_ICONS[p.categoria]||"📦"}</div>
                 <div style={{color:C.text,fontSize:13,fontWeight:600,marginBottom:3,lineHeight:1.3}}>{p.nombre}</div>
                 <div style={{color:C.textSm,fontSize:10,marginBottom:4}}>{p.sku}</div>
                 <div style={{color:C.green,fontSize:isMobile?17:16,fontWeight:700}}>{fmt(p.precio)}</div>
