@@ -333,7 +333,7 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
 
   const ESTADO_COLOR = {pagada:C.green,pendiente:C.amber,parcial:C.blue};
   const ESTADO_BG    = {pagada:C.greenBg,pendiente:C.amberBg,parcial:C.blueBg};
-  const filtered     = entradas.filter(e=>search===""|||(e.numero_factura||"").toLowerCase().includes(search.toLowerCase()));
+  const filtered = entradas.filter(e=>search===""||( e.numero_factura||"").toLowerCase().includes(search.toLowerCase()));
 
   return (
     <>
