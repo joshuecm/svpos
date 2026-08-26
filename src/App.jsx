@@ -1236,7 +1236,9 @@ export default function POS({ usuario, onLogout }) {
   const ivaBadgeColor = ivaConfig.modo==="incluido_simple"?C.green:ivaConfig.modo==="incluido_desglosado"?C.blue:C.amber;
   const ivaBadgeBg    = ivaConfig.modo==="incluido_simple"?C.greenBg:ivaConfig.modo==="incluido_desglosado"?C.blueBg:C.amberBg;
 
-  const SidebarContent = () => (
+  const SidebarContent = () => {
+    const [opOpen, setOpOpen] = React.useState(false);
+    return (
     <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
       <div style={{padding:"20px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div>
@@ -1246,16 +1248,33 @@ export default function POS({ usuario, onLogout }) {
         {!isDesktop&&<button onClick={()=>setShowSidebar(false)} style={{background:"none",border:"none",color:C.textSm,fontSize:22,cursor:"pointer",padding:"4px 8px"}}>✕</button>}
       </div>
       <nav style={{flex:1,padding:"12px 8px",overflowY:"auto"}}>
-        {[{id:"pos",icon:"🛒",label:"Punto de Venta"},{id:"history",icon:"🧾",label:"Historial"},{id:"caja",icon:"💰",label:"Caja"}].map(item=>(
-          <button key={item.id} onClick={()=>{setActiveTab(item.id);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:activeTab===item.id?C.blueBg:"transparent",color:activeTab===item.id?C.blue:C.textMd,fontSize:14,fontWeight:activeTab===item.id?600:400,cursor:"pointer",textAlign:"left"}}>
-            <span style={{fontSize:18}}>{item.icon}</span>{item.label}
-          </button>
-        ))}
-        {puedo("recibir_abonos")&&(
-          <button onClick={()=>{setShowCreditosModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textMd,fontSize:14,cursor:"pointer",textAlign:"left"}}>
-            <span style={{fontSize:18}}>💳</span>Pago Créditos
-          </button>
+        <button onClick={()=>{setActiveTab("pos");if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:activeTab==="pos"?C.blueBg:"transparent",color:activeTab==="pos"?C.blue:C.textMd,fontSize:14,fontWeight:activeTab==="pos"?600:400,cursor:"pointer",textAlign:"left"}}>
+          <span style={{fontSize:18}}>🛒</span>Punto de Venta
+        </button>
+
+        {/* ── OPERACIONES (desplegable) ── */}
+        <button onClick={()=>setOpOpen(p=>!p)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:opOpen?C.blueBg:"transparent",color:opOpen?C.blue:C.textMd,fontSize:14,fontWeight:opOpen?600:400,cursor:"pointer"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:18}}>⚙️</span>Operaciones
+          </div>
+          <span style={{fontSize:12,color:C.textSm}}>{opOpen?"▲":"▼"}</span>
+        </button>
+        {opOpen&&(
+          <div style={{marginLeft:12,marginBottom:4,borderLeft:`2px solid ${C.border}`,paddingLeft:8}}>
+            <button onClick={()=>{setActiveTab("caja");if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"9px 10px",marginBottom:2,borderRadius:8,border:"none",background:activeTab==="caja"?C.blueBg:"transparent",color:activeTab==="caja"?C.blue:C.textMd,fontSize:13,fontWeight:activeTab==="caja"?600:400,cursor:"pointer",textAlign:"left"}}>
+              <span style={{fontSize:16}}>💰</span>Caja
+            </button>
+            {puedo("recibir_abonos")&&(
+              <button onClick={()=>{setShowCreditosModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"9px 10px",marginBottom:2,borderRadius:8,border:"none",background:"transparent",color:C.textMd,fontSize:13,cursor:"pointer",textAlign:"left"}}>
+                <span style={{fontSize:16}}>💳</span>Pago Créditos
+              </button>
+            )}
+            <button onClick={()=>{setActiveTab("history");if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"9px 10px",marginBottom:2,borderRadius:8,border:"none",background:activeTab==="history"?C.blueBg:"transparent",color:activeTab==="history"?C.blue:C.textMd,fontSize:13,fontWeight:activeTab==="history"?600:400,cursor:"pointer",textAlign:"left"}}>
+              <span style={{fontSize:16}}>🧾</span>Historial de Facturas
+            </button>
+          </div>
         )}
+
         <div style={{borderTop:`1px solid ${C.border}`,margin:"8px 0"}}/>
         {puedo("catalogo_productos")&&(
           <button onClick={()=>{setShowProductosModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
@@ -1324,7 +1343,8 @@ export default function POS({ usuario, onLogout }) {
         </button>
       </div>
     </div>
-  );
+    );
+  };
 
   const TopBar = () => (
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:C.card,borderBottom:`1px solid ${C.border}`,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",position:"sticky",top:0,zIndex:10}}>
@@ -1516,53 +1536,88 @@ export default function POS({ usuario, onLogout }) {
     </div>
   );
 
-  const HistoryTab = () => (
-    <div style={{padding:isMobile?12:24,paddingBottom:isMobile?80:24}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <h2 style={{color:C.text,fontSize:18,fontWeight:700}}>Historial</h2>
-        <button onClick={loadAll} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
-      </div>
-      {salesHistory.length===0?(
-        <div style={{textAlign:"center",color:C.textSm,padding:60,background:C.card,borderRadius:12,border:`1px solid ${C.border}`}}>
-          <div style={{fontSize:40,marginBottom:12}}>🧾</div>
-          <div style={{fontSize:15,color:C.textMd}}>No hay ventas registradas</div>
+  const HistoryTab = () => {
+    const [busqueda,    setBusqueda]    = React.useState("");
+    const [fechaFiltro, setFechaFiltro] = React.useState("");
+    const [cajeroFiltro,setCajeroFiltro]= React.useState("");
+    const esAdmin = puedo("historial_global");
+    const cajeros = [...new Set(salesHistory.map(s=>s.cajero).filter(Boolean))];
+    const filtradas = salesHistory.filter(s=>{
+      const matchCorr   = !busqueda     || (s.correlativo||"").toLowerCase().includes(busqueda.toLowerCase());
+      const matchFecha  = !fechaFiltro  || s.created_at.startsWith(fechaFiltro);
+      const matchCajero = !cajeroFiltro || s.cajero===cajeroFiltro;
+      const matchPropio = esAdmin || s.cajero===usuario?.nombre;
+      return matchCorr&&matchFecha&&matchCajero&&matchPropio;
+    });
+    const IS2 = {background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"8px 12px",color:"#1E293B",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box"};
+    const METODOS = {cash:"Efectivo",card:"Tarjeta",transfer:"Transferencia",credit:"Crédito"};
+    return(
+      <div style={{padding:isMobile?12:24,paddingBottom:isMobile?80:24}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <h2 style={{color:C.text,fontSize:18,fontWeight:700}}>🧾 Historial de Facturas</h2>
+          <button onClick={loadAll} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
         </div>
-      ):salesHistory.map((s,i)=>(
-        <div key={s.id||i} style={{background:s.anulada?"#FEF2F2":C.card,border:`1px solid ${s.anulada?"#FECACA":C.border}`,borderRadius:10,padding:16,marginBottom:10,boxShadow:"0 1px 3px rgba(0,0,0,0.05)",opacity:s.anulada?0.7:1}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:16}}>
+          <div style={{display:"grid",gridTemplateColumns:esAdmin?"1fr 1fr 1fr":"1fr 1fr",gap:10}}>
             <div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{color:s.anulada?"#DC2626":C.blue,fontWeight:700,fontSize:15}}>{s.correlativo||`#${s.id}`}</span>
-                {s.anulada&&<span style={{background:"#DC2626",color:"#fff",fontSize:10,padding:"1px 8px",borderRadius:20,fontWeight:600}}>ANULADA</span>}
-              </div>
-              <div style={{color:C.textSm,fontSize:12,marginTop:2}}>{new Date(s.created_at).toLocaleString("es-GT")}</div>
-              <div style={{color:C.textMd,fontSize:12,marginTop:2}}>
-                {s.metodo_pago} · {customers.find(c=>c.id===s.cliente_id)?.nombre||"Mostrador"}
-              </div>
-              {s.anulada&&s.motivo_anulacion&&<div style={{color:"#DC2626",fontSize:11,marginTop:2}}>Motivo: {s.motivo_anulacion}</div>}
+              <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>No. Factura</label>
+              <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar..." style={IS2}/>
             </div>
-            <div style={{textAlign:"right"}}>
-              <div style={{color:s.anulada?"#DC2626":C.green,fontWeight:700,fontSize:16,textDecoration:s.anulada?"line-through":"none"}}>{fmt(s.total)}</div>
-              {!s.anulada&&(
-                <div style={{display:"flex",gap:6,marginTop:6,justifyContent:"flex-end"}}>
-                  <button onClick={()=>setVentaReimprimir(s)}
-                    style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:11,cursor:"pointer"}}>
-                    🖨️ Reimprimir
-                  </button>
-                  {(puedo("anular_propio")||puedo("anular_otros"))&&(
-                    <button onClick={()=>setVentaAnular(s)}
-                      style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #FECACA",background:"#FEF2F2",color:"#DC2626",fontSize:11,cursor:"pointer"}}>
-                      🚫 Anular
-                    </button>
-                  )}
+            <div>
+              <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>Fecha</label>
+              <input type="date" value={fechaFiltro} onChange={e=>setFechaFiltro(e.target.value)} style={IS2}/>
+            </div>
+            {esAdmin&&(
+              <div>
+                <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>Cajero</label>
+                <select value={cajeroFiltro} onChange={e=>setCajeroFiltro(e.target.value)} style={{...IS2,cursor:"pointer"}}>
+                  <option value="">Todos</option>
+                  {cajeros.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+          {(busqueda||fechaFiltro||cajeroFiltro)&&(
+            <button onClick={()=>{setBusqueda("");setFechaFiltro("");setCajeroFiltro("");}} style={{marginTop:8,background:"none",border:"none",color:C.blue,fontSize:12,cursor:"pointer",padding:0}}>
+              ✕ Limpiar filtros · {filtradas.length} resultado{filtradas.length!==1?"s":""}
+            </button>
+          )}
+        </div>
+        {filtradas.length===0?(
+          <div style={{textAlign:"center",color:C.textSm,padding:60,background:C.card,borderRadius:12,border:`1px solid ${C.border}`}}>
+            <div style={{fontSize:40,marginBottom:12}}>🧾</div>
+            <div style={{fontSize:15,color:C.textMd}}>{salesHistory.length===0?"No hay ventas registradas":"Sin resultados para ese filtro"}</div>
+          </div>
+        ):filtradas.map((s,i)=>(
+          <div key={s.id||i} style={{background:s.anulada?"#FEF2F2":C.card,border:`1px solid ${s.anulada?"#FECACA":C.border}`,borderRadius:10,padding:16,marginBottom:10,boxShadow:"0 1px 3px rgba(0,0,0,0.05)",opacity:s.anulada?0.7:1}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <span style={{color:s.anulada?"#DC2626":C.blue,fontWeight:700,fontSize:15}}>{s.correlativo||`#${s.id}`}</span>
+                  {s.anulada&&<span style={{background:"#DC2626",color:"#fff",fontSize:10,padding:"1px 8px",borderRadius:20,fontWeight:600}}>ANULADA</span>}
                 </div>
-              )}
+                <div style={{color:C.textSm,fontSize:12,marginTop:2}}>{new Date(s.created_at).toLocaleString("es-GT")}</div>
+                <div style={{color:C.textMd,fontSize:12,marginTop:2}}>{customers.find(c=>c.id===s.cliente_id)?.nombre||"Mostrador"} · {s.cajero}</div>
+                <div style={{color:C.textSm,fontSize:11,marginTop:1}}>{(s.metodo_pago||"").split("+").map(m=>METODOS[m]||m).join(" + ")}</div>
+                {s.anulada&&s.motivo_anulacion&&<div style={{color:"#DC2626",fontSize:11,marginTop:2}}>Motivo: {s.motivo_anulacion}</div>}
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{color:s.anulada?"#DC2626":C.green,fontWeight:700,fontSize:16,textDecoration:s.anulada?"line-through":"none"}}>{fmt(s.total)}</div>
+                {!s.anulada&&(
+                  <div style={{display:"flex",gap:6,marginTop:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
+                    <button onClick={()=>setVentaReimprimir(s)} style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:11,cursor:"pointer"}}>🖨️ Reimprimir</button>
+                    {(puedo("anular_propio")||puedo("anular_otros"))&&(
+                      <button onClick={()=>setVentaAnular(s)} style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #FECACA",background:"#FEF2F2",color:"#DC2626",fontSize:11,cursor:"pointer"}}>🚫 Anular</button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      ))}
-    </div>
-  );
+        ))}
+      </div>
+    );
+  };
 
   const CajaTab = () => {
     const IS = {background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"10px 14px",color:"#1E293B",fontSize:14,outline:"none",width:"100%",boxSizing:"border-box"};
