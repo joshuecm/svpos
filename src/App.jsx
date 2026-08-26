@@ -943,9 +943,10 @@ export default function POS({ usuario, onLogout }) {
   const cargarCajaDetalle = async (caja) => {
     if(!caja) return;
     try {
+      const fechaAbierta = caja.abierta_at.replace(' ', '+');
       const [sal, abon] = await Promise.all([
         sb("salidas_caja","GET",null,`?caja_id=eq.${caja.id}&order=created_at.asc`),
-        sb("abonos_credito","GET",null,`?cajero=eq.${encodeURIComponent(caja.cajero)}&created_at=gte.${caja.abierta_at}&order=created_at.asc`),
+        sb("abonos_credito","GET",null,`?cajero=eq.${encodeURIComponent(caja.cajero)}&created_at=gte.${encodeURIComponent(fechaAbierta)}&order=created_at.asc`),
       ]);
       console.log("Caja:", caja.cajero, "abierta_at:", caja.abierta_at);
       console.log("Abonos cargados:", abon?.length, abon);
