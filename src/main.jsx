@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import Login from './Login.jsx'
-import { cargarUsuarioCompleto } from './usuarios.js'
+import { cargarUsuarioCompleto, limpiarCachePermisos } from './usuarios.js'
 
 function Root() {
   const [usuario,  setUsuario]  = useState(null);
@@ -14,6 +14,7 @@ function Root() {
         const saved = localStorage.getItem("svpos_user");
         if (saved) {
           const u = JSON.parse(saved);
+          limpiarCachePermisos(); // Forzar recarga fresca de permisos
           const uCompleto = await cargarUsuarioCompleto(u);
           localStorage.setItem("svpos_user", JSON.stringify(uCompleto));
           setUsuario(uCompleto);
