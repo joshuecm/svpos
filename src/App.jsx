@@ -947,6 +947,8 @@ export default function POS({ usuario, onLogout }) {
         sb("salidas_caja","GET",null,`?caja_id=eq.${caja.id}&order=created_at.asc`),
         sb("abonos_credito","GET",null,`?cajero=eq.${encodeURIComponent(caja.cajero)}&created_at=gte.${caja.abierta_at}&order=created_at.asc`),
       ]);
+      console.log("Caja:", caja.cajero, "abierta_at:", caja.abierta_at);
+      console.log("Abonos cargados:", abon?.length, abon);
       setCajaSalidas(sal||[]);
       setCajaAbonos(abon||[]);
     } catch(e){ console.error("Error cargando detalle caja:", e); }
