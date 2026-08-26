@@ -1125,7 +1125,7 @@ export default function POS({ usuario, onLogout }) {
   const ivaBadgeBg    = ivaConfig.modo==="incluido_simple"?C.greenBg:ivaConfig.modo==="incluido_desglosado"?C.blueBg:C.amberBg;
 
   const SidebarContent = () => (
-    <>
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
       <div style={{padding:"20px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div>
           <div style={{color:C.blue,fontSize:13,fontWeight:800,letterSpacing:1}}>SMART VALION</div>
@@ -1211,7 +1211,7 @@ export default function POS({ usuario, onLogout }) {
           🚪 Cerrar sesión
         </button>
       </div>
-    </>
+    </div>
   );
 
   const TopBar = () => (
@@ -1896,7 +1896,7 @@ export default function POS({ usuario, onLogout }) {
     <div style={{display:"flex",height:"100vh",background:C.bg,fontFamily:"Inter,system-ui,sans-serif",overflow:"hidden"}}>
 
       {isDesktop&&(
-        <div style={{width:210,background:C.sidebar,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,boxShadow:"2px 0 8px rgba(0,0,0,0.04)"}}>
+        <div style={{width:210,background:C.sidebar,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,boxShadow:"2px 0 8px rgba(0,0,0,0.04)",overflow:"hidden"}}>
           <SidebarContent/>
         </div>
       )}
