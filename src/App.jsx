@@ -10,6 +10,7 @@ import ProveedoresModal from "./ProveedoresModal.jsx";
 import InventarioModal from "./InventarioModal.jsx";
 import CombosModal from "./CombosModal.jsx";
 import CajaModal, { AperturaCaja } from "./CajaModal.jsx";
+import AnulacionModal from "./AnulacionModal.jsx";
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
@@ -816,6 +817,86 @@ function PrecioModal({ producto, onSelect, onClose, isMobile }) {
   );
 }
 
+// ─── REIMPRESION MODAL ────────────────────────────────────────────────────────
+function ReimpresionModal({ venta, customers, ivaConfig, onClose }) {
+  const fmt2 = (n) => `Q ${Number(n||0).toFixed(2)}`;
+  const [detalles, setDetalles] = useState([]);
+
+  useEffect(()=>{
+    const cargar = async () => {
+      try {
+        const d = await fetch(`https://rztujbaunmeqhgrxugth.supabase.co/rest/v1/detalle_ventas?venta_id=eq.${venta.id}`,{
+          headers:{"apikey":"sb_publishable_-BLot_F7KegMytm1jJ9jYg_n0SR2Q-q","Authorization":"Bearer sb_publishable_-BLot_F7KegMytm1jJ9jYg_n0SR2Q-q"}
+        }).then(r=>r.json());
+        setDetalles(d||[]);
+      } catch {}
+    };
+    cargar();
+  },[venta.id]);
+
+  const cliente = customers.find(c=>c.id===venta.cliente_id);
+  const metodos = {cash:"Efectivo",card:"Tarjeta",transfer:"Transferencia",credit:"Crédito"};
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,backdropFilter:"blur(3px)"}}>
+      <div style={{background:"#fff",borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",width:"400px",maxWidth:"95vw",maxHeight:"90vh",overflowY:"auto",padding:24}}>
+        <div style={{fontFamily:"'Courier New',monospace"}}>
+          <div style={{textAlign:"center",borderBottom:"1px dashed #E2E8F0",paddingBottom:12,marginBottom:12}}>
+            {venta.anulada&&<div style={{background:"#DC2626",color:"#fff",padding:"2px 8px",borderRadius:4,fontSize:11,fontWeight:700,marginBottom:6}}>*** FACTURA ANULADA ***</div>}
+            <div style={{fontSize:11,color:"#94A3B8",letterSpacing:2}}>COMPROBANTE DE VENTA</div>
+            <div style={{fontSize:18,fontWeight:700,color:"#1E293B",fontFamily:"Inter,sans-serif"}}>Smart Valion POS</div>
+            <div style={{fontSize:11,color:"#475569"}}>{venta.sucursal||"Principal"}</div>
+            <div style={{fontSize:11,color:"#475569"}}>{new Date(venta.created_at).toLocaleString("es-GT")}</div>
+          </div>
+          {[
+            {label:"Factura", value:venta.correlativo},
+            {label:"Cliente", value:cliente?.nombre||"Mostrador"},
+            {label:"Cajero",  value:venta.cajero},
+            {label:"Pago",    value:(venta.metodo_pago||"").split("+").map(m=>metodos[m]||m).join(" + ")},
+          ].map(s=>(
+            <div key={s.label} style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <span style={{color:"#475569",fontSize:12}}>{s.label}</span>
+              <span style={{color:"#1E293B",fontSize:12,fontWeight:600}}>{s.value}</span>
+            </div>
+          ))}
+          <div style={{borderTop:"1px dashed #E2E8F0",paddingTop:10,marginTop:8,marginBottom:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:4,marginBottom:6,paddingBottom:4,borderBottom:"1px solid #E2E8F0"}}>
+              {["Producto","Cant.","Total"].map(h=><span key={h} style={{color:"#94A3B8",fontSize:10,fontWeight:600}}>{h}</span>)}
+            </div>
+            {detalles.map((d,i)=>(
+              <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:4,marginBottom:4}}>
+                <span style={{color:"#1E293B",fontSize:11}}>{d.nombre}</span>
+                <span style={{color:"#475569",fontSize:11,textAlign:"center"}}>{d.cantidad}</span>
+                <span style={{color:"#1E293B",fontSize:11,textAlign:"right"}}>{fmt2(d.subtotal)}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{borderTop:"1px dashed #E2E8F0",paddingTop:8,marginBottom:16}}>
+            {[
+              {label:"Subtotal", value:fmt2(venta.subtotal)},
+              {label:"IVA 12%",  value:fmt2(venta.impuesto)},
+            ].map(s=>(
+              <div key={s.label} style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                <span style={{color:"#475569",fontSize:12}}>{s.label}</span>
+                <span style={{color:"#1E293B",fontSize:12}}>{s.value}</span>
+              </div>
+            ))}
+            <div style={{display:"flex",justifyContent:"space-between",paddingTop:6,borderTop:"1px dashed #E2E8F0",marginTop:4}}>
+              <span style={{color:"#1E293B",fontSize:14,fontWeight:700}}>TOTAL</span>
+              <span style={{color:"#3B82F6",fontSize:16,fontWeight:700}}>{fmt2(venta.total)}</span>
+            </div>
+          </div>
+          <div style={{textAlign:"center",color:"#94A3B8",fontSize:10,marginBottom:16}}>*** Copia de comprobante ***</div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>window.print()} style={{flex:1,padding:10,borderRadius:8,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:13,cursor:"pointer"}}>🖨️ Imprimir</button>
+            <button onClick={onClose} style={{flex:1,padding:10,borderRadius:8,border:"none",background:"#3B82F6",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>✓ Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL
 // ══════════════════════════════════════════════════════════════════════════════
@@ -854,6 +935,8 @@ export default function POS({ usuario, onLogout }) {
   const [showAperturaCaja,     setShowAperturaCaja]     = useState(false);
   const [showCombosModal,      setShowCombosModal]      = useState(false);
   const [ticketCierre,         setTicketCierre]         = useState(null);
+  const [ventaAnular,          setVentaAnular]          = useState(null);
+  const [ventaReimprimir,      setVentaReimprimir]      = useState(null);
 
   const [combos,               setCombos]               = useState([]);
   const [modoInventarioAdmin,  setModoInventarioAdmin]  = useState(true);
@@ -1429,13 +1512,37 @@ export default function POS({ usuario, onLogout }) {
           <div style={{fontSize:15,color:C.textMd}}>No hay ventas registradas</div>
         </div>
       ):salesHistory.map((s,i)=>(
-        <div key={s.id||i} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:16,marginBottom:10,boxShadow:"0 1px 3px rgba(0,0,0,0.05)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{color:C.blue,fontWeight:700,fontSize:15}}>{s.correlativo||`#${s.id}`}</span>
-            <span style={{color:C.green,fontWeight:700,fontSize:16}}>{fmt(s.total)}</span>
+        <div key={s.id||i} style={{background:s.anulada?"#FEF2F2":C.card,border:`1px solid ${s.anulada?"#FECACA":C.border}`,borderRadius:10,padding:16,marginBottom:10,boxShadow:"0 1px 3px rgba(0,0,0,0.05)",opacity:s.anulada?0.7:1}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{color:s.anulada?"#DC2626":C.blue,fontWeight:700,fontSize:15}}>{s.correlativo||`#${s.id}`}</span>
+                {s.anulada&&<span style={{background:"#DC2626",color:"#fff",fontSize:10,padding:"1px 8px",borderRadius:20,fontWeight:600}}>ANULADA</span>}
+              </div>
+              <div style={{color:C.textSm,fontSize:12,marginTop:2}}>{new Date(s.created_at).toLocaleString("es-GT")}</div>
+              <div style={{color:C.textMd,fontSize:12,marginTop:2}}>
+                {s.metodo_pago} · {customers.find(c=>c.id===s.cliente_id)?.nombre||"Mostrador"}
+              </div>
+              {s.anulada&&s.motivo_anulacion&&<div style={{color:"#DC2626",fontSize:11,marginTop:2}}>Motivo: {s.motivo_anulacion}</div>}
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{color:s.anulada?"#DC2626":C.green,fontWeight:700,fontSize:16,textDecoration:s.anulada?"line-through":"none"}}>{fmt(s.total)}</div>
+              {!s.anulada&&(
+                <div style={{display:"flex",gap:6,marginTop:6,justifyContent:"flex-end"}}>
+                  <button onClick={()=>setVentaReimprimir(s)}
+                    style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:11,cursor:"pointer"}}>
+                    🖨️ Reimprimir
+                  </button>
+                  {(puedo("anular_propio")||puedo("anular_otros"))&&(
+                    <button onClick={()=>setVentaAnular(s)}
+                      style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #FECACA",background:"#FEF2F2",color:"#DC2626",fontSize:11,cursor:"pointer"}}>
+                      🚫 Anular
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-          <div style={{color:C.textSm,fontSize:12,marginTop:4}}>{new Date(s.created_at).toLocaleString("es-GT")}</div>
-          <div style={{color:C.textMd,fontSize:13,marginTop:4}}>{s.metodo_pago}</div>
         </div>
       ))}
     </div>
@@ -1584,9 +1691,13 @@ export default function POS({ usuario, onLogout }) {
     };
 
     // Calcular totales solo del turno actual
-    const ventasTurno = cajaActual
+    const ventasTurno = (cajaActual
       ? salesHistory.filter(v=> new Date(v.created_at) >= new Date(cajaActual.abierta_at) && v.cajero===cajaActual.cajero)
-      : salesHistory;
+      : salesHistory
+    ).map(v=>({
+      ...v,
+      _clienteNombre: customers.find(c=>c.id===v.cliente_id)?.nombre||(v.cliente_id?"Cliente":"Mostrador"),
+    }));
 
     const totalEfectivo = ventasTurno.filter(v=>(v.metodo_pago||"").includes("cash")).reduce((s,v)=>s+parseFloat(v.total||0),0);
     const totalTransfer = ventasTurno.filter(v=>(v.metodo_pago||"").includes("transfer")).reduce((s,v)=>s+parseFloat(v.total||0),0);
@@ -2158,6 +2269,23 @@ export default function POS({ usuario, onLogout }) {
             </div>
           </div>
         </div>
+      )}
+      {ventaAnular&&(
+        <AnulacionModal
+          venta={ventaAnular} usuario={usuario} isMobile={isMobile}
+          onClose={()=>setVentaAnular(null)}
+          onAnulada={(autorizador)=>{
+            notify(`Factura ${ventaAnular.correlativo} anulada — autorizada por ${autorizador}`);
+            setVentaAnular(null);
+            loadAll();
+          }}
+        />
+      )}
+      {ventaReimprimir&&(
+        <ReimpresionModal
+          venta={ventaReimprimir} customers={customers} ivaConfig={ivaConfig}
+          onClose={()=>setVentaReimprimir(null)}
+        />
       )}
       {showCombosModal&&puedo("gestion_combos")&&(
         <CombosModal isMobile={isMobile} onClose={()=>{setShowCombosModal(false);loadAll();}}/>
