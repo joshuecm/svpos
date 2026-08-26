@@ -853,6 +853,7 @@ export default function POS({ usuario, onLogout }) {
   const [cajaActual,           setCajaActual]           = useState(null);
   const [showAperturaCaja,     setShowAperturaCaja]     = useState(false);
   const [showCombosModal,      setShowCombosModal]      = useState(false);
+  const [ticketCierre,         setTicketCierre]         = useState(null);
   const [combos,               setCombos]               = useState([]);
   const [modoInventarioAdmin,  setModoInventarioAdmin]  = useState(true);
   const [showPrecioModal,   setShowPrecioModal]   = useState(false);
@@ -1494,7 +1495,7 @@ export default function POS({ usuario, onLogout }) {
       setGuardandoSal(false);
     };
 
-    const [ticketCierre,  setTicketCierre]  = useState(null);
+    const [ticketCierreLocal, setTicketCierreLocal] = useState(null); // temporal, se sube al padre
 
     const cerrarCaja = async () => {
       if(efectivoDecl===""){ setErrCaja("Ingresa el efectivo declarado"); return; }
@@ -1699,111 +1700,7 @@ export default function POS({ usuario, onLogout }) {
               </div>
             )}
 
-            {/* Ticket de cierre */}
-            {ticketCierre&&(
-              <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,backdropFilter:"blur(3px)"}}>
-                <div style={{background:"#fff",borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",width:"440px",maxWidth:"95vw",maxHeight:"90vh",overflowY:"auto",padding:24}}>
-                  <div style={{fontFamily:"'Courier New',monospace"}}>
-                    <div style={{textAlign:"center",borderBottom:"1px dashed #E2E8F0",paddingBottom:12,marginBottom:12}}>
-                      <div style={{fontSize:11,color:"#94A3B8",letterSpacing:2}}>CIERRE DE CAJA</div>
-                      <div style={{fontSize:18,fontWeight:700,color:"#1E293B",fontFamily:"Inter,sans-serif"}}>Smart Valion POS</div>
-                      <div style={{fontSize:11,color:"#475569"}}>{ticketCierre.sucursal} · Serie {ticketCierre.serie}</div>
-                    </div>
-                    {[
-                      {label:"Cajero",   value:ticketCierre.cajero},
-                      {label:"Apertura", value:new Date(ticketCierre.abierta_at).toLocaleString("es-GT")},
-                      {label:"Cierre",   value:new Date(ticketCierre.cerrada_at).toLocaleString("es-GT")},
-                    ].map(s=>(
-                      <div key={s.label} style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                        <span style={{color:"#475569",fontSize:12}}>{s.label}</span>
-                        <span style={{color:"#1E293B",fontSize:12,fontWeight:600}}>{s.value}</span>
-                      </div>
-                    ))}
-                    <div style={{borderTop:"1px dashed #E2E8F0",paddingTop:10,marginTop:8,marginBottom:10}}>
-                      <div style={{color:"#475569",fontSize:11,fontWeight:600,marginBottom:6}}>VENTAS DEL TURNO:</div>
-                      {[
-                        {label:"Efectivo",          value:ticketCierre.totalEfectivo},
-                        {label:"Tarjeta",           value:ticketCierre.totalTarjeta},
-                        {label:"Transferencia",     value:ticketCierre.totalTransfer},
-                        {label:"Crédito",           value:ticketCierre.totalCredito},
-                        {label:"Créditos cobrados", value:ticketCierre.totalAbonos},
-                      ].map(r=>(
-                        <div key={r.label} style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                          <span style={{color:"#475569",fontSize:12}}>{r.label}</span>
-                          <span style={{color:"#1E293B",fontSize:12}}>{fmt(r.value)}</span>
-                        </div>
-                      ))}
-                      <div style={{display:"flex",justifyContent:"space-between",paddingTop:6,borderTop:"1px dashed #E2E8F0",marginTop:4}}>
-                        <span style={{color:"#1E293B",fontSize:13,fontWeight:700}}>Total ventas</span>
-                        <span style={{color:"#3B82F6",fontSize:13,fontWeight:700}}>{fmt(ticketCierre.totalVentas)}</span>
-                      </div>
-                    </div>
-                    {ticketCierre.salidas.length>0&&(
-                      <div style={{borderTop:"1px dashed #E2E8F0",paddingTop:10,marginBottom:10}}>
-                        <div style={{color:"#475569",fontSize:11,fontWeight:600,marginBottom:6}}>SALIDAS DE EFECTIVO:</div>
-                        {ticketCierre.salidas.map((s,i)=>(
-                          <div key={i} style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                            <span style={{color:"#475569",fontSize:11}}>{s.motivo}</span>
-                            <span style={{color:"#DC2626",fontSize:11}}>-{fmt(s.monto)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {ticketCierre.modo==="detallado"&&ticketCierre.ventas.length>0&&(
-                      <div style={{borderTop:"1px dashed #E2E8F0",paddingTop:10,marginBottom:10}}>
-                        <div style={{color:"#475569",fontSize:11,fontWeight:600,marginBottom:6}}>FACTURAS DEL TURNO:</div>
-                        {ticketCierre.ventas.map(v=>(
-                          <div key={v.id} style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                            <span style={{color:"#3B82F6",fontSize:11}}>{v.correlativo}</span>
-                            <span style={{color:"#1E293B",fontSize:11}}>{fmt(v.total)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div style={{borderTop:"1px dashed #E2E8F0",paddingTop:10,marginBottom:10}}>
-                      <div style={{color:"#475569",fontSize:11,fontWeight:600,marginBottom:6}}>RESUMEN EFECTIVO:</div>
-                      {[
-                        {label:"Fondo inicial",       value:fmt(ticketCierre.fondo)},
-                        {label:"+ Ventas efectivo",   value:fmt(ticketCierre.totalEfectivo)},
-                        {label:"+ Créditos cobrados", value:fmt(ticketCierre.totalAbonos)},
-                        {label:"− Salidas",           value:`-${fmt(ticketCierre.totalSalidas)}`},
-                      ].map(r=>(
-                        <div key={r.label} style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                          <span style={{color:"#475569",fontSize:12}}>{r.label}</span>
-                          <span style={{color:"#1E293B",fontSize:12}}>{r.value}</span>
-                        </div>
-                      ))}
-                      <div style={{display:"flex",justifyContent:"space-between",paddingTop:4,borderTop:"1px solid #E2E8F0",marginBottom:3}}>
-                        <span style={{color:"#1E293B",fontSize:12,fontWeight:700}}>Efectivo esperado</span>
-                        <span style={{color:"#3B82F6",fontSize:12,fontWeight:700}}>{fmt(ticketCierre.efectivoEsperado)}</span>
-                      </div>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                        <span style={{color:"#1E293B",fontSize:12,fontWeight:700}}>Efectivo declarado</span>
-                        <span style={{color:"#16A34A",fontSize:12,fontWeight:700}}>{fmt(ticketCierre.efectivoDecl)}</span>
-                      </div>
-                      <div style={{display:"flex",justifyContent:"space-between",padding:"6px 10px",borderRadius:6,background:ticketCierre.diferencia===0?"#F0FDF4":ticketCierre.diferencia>0?"#EFF6FF":"#FEF2F2"}}>
-                        <span style={{color:ticketCierre.diferencia===0?"#16A34A":ticketCierre.diferencia>0?"#3B82F6":"#DC2626",fontSize:13,fontWeight:700}}>
-                          {ticketCierre.diferencia===0?"✓ Cuadra exacto":ticketCierre.diferencia>0?"⬆ Sobrante":"⬇ Faltante"}
-                        </span>
-                        <span style={{color:ticketCierre.diferencia===0?"#16A34A":ticketCierre.diferencia>0?"#3B82F6":"#DC2626",fontSize:13,fontWeight:700}}>
-                          {ticketCierre.diferencia===0?"":fmt(Math.abs(ticketCierre.diferencia))}
-                        </span>
-                      </div>
-                    </div>
-                    {ticketCierre.observaciones&&(
-                      <div style={{marginBottom:12}}>
-                        <span style={{color:"#475569",fontSize:12}}>Obs: {ticketCierre.observaciones}</span>
-                      </div>
-                    )}
-                    <div style={{textAlign:"center",color:"#94A3B8",fontSize:10,marginBottom:16}}>*** Documento interno ***</div>
-                    <div style={{display:"flex",gap:8}}>
-                      <button onClick={()=>window.print()} style={{flex:1,padding:10,borderRadius:8,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:13,cursor:"pointer"}}>🖨️ Imprimir</button>
-                      <button onClick={()=>setTicketCierre(null)} style={{flex:1,padding:10,borderRadius:8,border:"none",background:"#3B82F6",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>✓ Cerrar</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Ticket de cierre — renderizado desde estado del padre */}
 
             {/* Form cierre */}
             {showCierre&&(
@@ -1989,6 +1886,110 @@ export default function POS({ usuario, onLogout }) {
       )}
       {showClientesModal&&puedo("catalogo_clientes")&&(
         <ClientesModal isMobile={isMobile} onClose={()=>{setShowClientesModal(false);loadAll();}}/>
+      )}
+      {ticketCierre&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,backdropFilter:"blur(3px)"}}>
+          <div style={{background:"#fff",borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",width:"440px",maxWidth:"95vw",maxHeight:"90vh",overflowY:"auto",padding:24}}>
+            <div style={{fontFamily:"'Courier New',monospace"}}>
+              <div style={{textAlign:"center",borderBottom:"1px dashed #E2E8F0",paddingBottom:12,marginBottom:12}}>
+                <div style={{fontSize:11,color:"#94A3B8",letterSpacing:2}}>CIERRE DE CAJA</div>
+                <div style={{fontSize:18,fontWeight:700,color:"#1E293B",fontFamily:"Inter,sans-serif"}}>Smart Valion POS</div>
+                <div style={{fontSize:11,color:"#475569"}}>{ticketCierre.sucursal} · Serie {ticketCierre.serie}</div>
+              </div>
+              {[
+                {label:"Cajero",   value:ticketCierre.cajero},
+                {label:"Apertura", value:new Date(ticketCierre.abierta_at).toLocaleString("es-GT")},
+                {label:"Cierre",   value:new Date(ticketCierre.cerrada_at).toLocaleString("es-GT")},
+              ].map(s=>(
+                <div key={s.label} style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                  <span style={{color:"#475569",fontSize:12}}>{s.label}</span>
+                  <span style={{color:"#1E293B",fontSize:12,fontWeight:600}}>{s.value}</span>
+                </div>
+              ))}
+              <div style={{borderTop:"1px dashed #E2E8F0",paddingTop:10,marginTop:8,marginBottom:10}}>
+                <div style={{color:"#475569",fontSize:11,fontWeight:600,marginBottom:6}}>VENTAS DEL TURNO:</div>
+                {[
+                  {label:"Efectivo",          value:ticketCierre.totalEfectivo},
+                  {label:"Tarjeta",           value:ticketCierre.totalTarjeta},
+                  {label:"Transferencia",     value:ticketCierre.totalTransfer},
+                  {label:"Crédito",           value:ticketCierre.totalCredito},
+                  {label:"Créditos cobrados", value:ticketCierre.totalAbonos},
+                ].map(r=>(
+                  <div key={r.label} style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                    <span style={{color:"#475569",fontSize:12}}>{r.label}</span>
+                    <span style={{color:"#1E293B",fontSize:12}}>{fmt(r.value)}</span>
+                  </div>
+                ))}
+                <div style={{display:"flex",justifyContent:"space-between",paddingTop:6,borderTop:"1px dashed #E2E8F0",marginTop:4}}>
+                  <span style={{color:"#1E293B",fontSize:13,fontWeight:700}}>Total ventas</span>
+                  <span style={{color:"#3B82F6",fontSize:13,fontWeight:700}}>{fmt(ticketCierre.totalVentas)}</span>
+                </div>
+              </div>
+              {ticketCierre.salidas?.length>0&&(
+                <div style={{borderTop:"1px dashed #E2E8F0",paddingTop:10,marginBottom:10}}>
+                  <div style={{color:"#475569",fontSize:11,fontWeight:600,marginBottom:6}}>SALIDAS DE EFECTIVO:</div>
+                  {ticketCierre.salidas.map((s,i)=>(
+                    <div key={i} style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                      <span style={{color:"#475569",fontSize:11}}>{s.motivo}</span>
+                      <span style={{color:"#DC2626",fontSize:11}}>-{fmt(s.monto)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {ticketCierre.modo==="detallado"&&ticketCierre.ventas?.length>0&&(
+                <div style={{borderTop:"1px dashed #E2E8F0",paddingTop:10,marginBottom:10}}>
+                  <div style={{color:"#475569",fontSize:11,fontWeight:600,marginBottom:6}}>FACTURAS DEL TURNO:</div>
+                  {ticketCierre.ventas.map(v=>(
+                    <div key={v.id} style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                      <span style={{color:"#3B82F6",fontSize:11}}>{v.correlativo}</span>
+                      <span style={{color:"#1E293B",fontSize:11}}>{fmt(v.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{borderTop:"1px dashed #E2E8F0",paddingTop:10,marginBottom:10}}>
+                <div style={{color:"#475569",fontSize:11,fontWeight:600,marginBottom:6}}>RESUMEN EFECTIVO:</div>
+                {[
+                  {label:"Fondo inicial",       value:fmt(ticketCierre.fondo)},
+                  {label:"+ Ventas efectivo",   value:fmt(ticketCierre.totalEfectivo)},
+                  {label:"+ Créditos cobrados", value:fmt(ticketCierre.totalAbonos)},
+                  {label:"− Salidas",           value:`-${fmt(ticketCierre.totalSalidas)}`},
+                ].map(r=>(
+                  <div key={r.label} style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                    <span style={{color:"#475569",fontSize:12}}>{r.label}</span>
+                    <span style={{color:"#1E293B",fontSize:12}}>{r.value}</span>
+                  </div>
+                ))}
+                <div style={{display:"flex",justifyContent:"space-between",paddingTop:4,borderTop:"1px solid #E2E8F0",marginBottom:3}}>
+                  <span style={{color:"#1E293B",fontSize:12,fontWeight:700}}>Efectivo esperado</span>
+                  <span style={{color:"#3B82F6",fontSize:12,fontWeight:700}}>{fmt(ticketCierre.efectivoEsperado)}</span>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                  <span style={{color:"#1E293B",fontSize:12,fontWeight:700}}>Efectivo declarado</span>
+                  <span style={{color:"#16A34A",fontSize:12,fontWeight:700}}>{fmt(ticketCierre.efectivoDecl)}</span>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",padding:"6px 10px",borderRadius:6,background:ticketCierre.diferencia===0?"#F0FDF4":ticketCierre.diferencia>0?"#EFF6FF":"#FEF2F2"}}>
+                  <span style={{color:ticketCierre.diferencia===0?"#16A34A":ticketCierre.diferencia>0?"#3B82F6":"#DC2626",fontSize:13,fontWeight:700}}>
+                    {ticketCierre.diferencia===0?"✓ Cuadra exacto":ticketCierre.diferencia>0?"⬆ Sobrante":"⬇ Faltante"}
+                  </span>
+                  <span style={{color:ticketCierre.diferencia===0?"#16A34A":ticketCierre.diferencia>0?"#3B82F6":"#DC2626",fontSize:13,fontWeight:700}}>
+                    {ticketCierre.diferencia===0?"":fmt(Math.abs(ticketCierre.diferencia))}
+                  </span>
+                </div>
+              </div>
+              {ticketCierre.observaciones&&(
+                <div style={{marginBottom:12}}>
+                  <span style={{color:"#475569",fontSize:12}}>Obs: {ticketCierre.observaciones}</span>
+                </div>
+              )}
+              <div style={{textAlign:"center",color:"#94A3B8",fontSize:10,marginBottom:16}}>*** Documento interno ***</div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>window.print()} style={{flex:1,padding:10,borderRadius:8,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:13,cursor:"pointer"}}>🖨️ Imprimir</button>
+                <button onClick={()=>setTicketCierre(null)} style={{flex:1,padding:10,borderRadius:8,border:"none",background:"#3B82F6",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>✓ Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       {showCombosModal&&puedo("gestion_combos")&&(
         <CombosModal isMobile={isMobile} onClose={()=>{setShowCombosModal(false);loadAll();}}/>
