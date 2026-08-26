@@ -1237,7 +1237,7 @@ export default function POS({ usuario, onLogout }) {
   const ivaBadgeBg    = ivaConfig.modo==="incluido_simple"?C.greenBg:ivaConfig.modo==="incluido_desglosado"?C.blueBg:C.amberBg;
 
   const SidebarContent = () => {
-    const [opOpen, setOpOpen] = React.useState(false);
+    const [opOpen, setOpOpen] = useState(false);
     return (
     <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
       <div style={{padding:"20px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -1537,9 +1537,9 @@ export default function POS({ usuario, onLogout }) {
   );
 
   const HistoryTab = () => {
-    const [busqueda,    setBusqueda]    = React.useState("");
-    const [fechaFiltro, setFechaFiltro] = React.useState("");
-    const [cajeroFiltro,setCajeroFiltro]= React.useState("");
+    const [busqueda,    setBusqueda]    = useState("");
+    const [fechaFiltro, setFechaFiltro] = useState("");
+    const [cajeroFiltro,setCajeroFiltro]= useState("");
     const esAdmin = puedo("historial_global");
     const cajeros = [...new Set(salesHistory.map(s=>s.cajero).filter(Boolean))];
     const filtradas = salesHistory.filter(s=>{
