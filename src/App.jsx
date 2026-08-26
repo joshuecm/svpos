@@ -1025,6 +1025,12 @@ export default function POS({ usuario, onLogout }) {
 
   // ── Completar venta desde PayModal
   const completeSale = async (pagos) => {
+    // Verificar que hay caja abierta
+    if(!cajaActual) {
+      notify("Debes abrir la caja antes de registrar ventas","error");
+      setShowPayModal(false);
+      return;
+    }
     try {
       const serie = usuario?.serie_correlativo || "A";
 
@@ -1317,9 +1323,12 @@ export default function POS({ usuario, onLogout }) {
         <button onClick={holdSale} disabled={cart.length===0} style={{...btnSecondary,flex:1,padding:mobile?12:10,opacity:cart.length===0?0.4:1}}>⏸ Espera</button>
         <button onClick={()=>{setCart([]);setCustomer(customers[0]);}} disabled={cart.length===0} style={{...btnDanger,padding:mobile?"12px 16px":"10px 14px",opacity:cart.length===0?0.4:1}}>🗑</button>
       </div>
-      <button onClick={()=>cart.length>0&&setShowPayModal(true)} disabled={cart.length===0}
-        style={{...btnPrimary,width:"100%",padding:mobile?16:14,fontSize:mobile?17:16,fontWeight:700,borderRadius:10,opacity:cart.length===0?0.4:1}}>
-        💳 {mobile?`Cobrar ${fmt(cartTotal)}`:"Cobrar"}
+      <button onClick={()=>{
+        if(!cajaActual){ notify("Abre la caja antes de cobrar","error"); return; }
+        cart.length>0&&setShowPayModal(true);
+      }} disabled={cart.length===0}
+        style={{...btnPrimary,width:"100%",padding:mobile?16:14,fontSize:mobile?17:16,fontWeight:700,borderRadius:10,opacity:cart.length===0?0.4:1,background:!cajaActual?"#94A3B8":undefined}}>
+        {!cajaActual?"🔒 Caja cerrada":`💳 ${mobile?`Cobrar ${fmt(cartTotal)}`:"Cobrar"}`}
       </button>
     </div>
   );
