@@ -1531,8 +1531,12 @@ export default function POS({ usuario, onLogout }) {
           diferencia,
           observaciones: obsDecl.trim()||null,
           salidas,
-          ventas:        modoCierre==="detallado"?ventasTurno:[],
-          modo:          modoCierre,
+          abonos,
+          ventas: modoCierre==="detallado" ? ventasTurno.map(v=>({
+            ...v,
+            _clienteNombre: customers.find(c=>c.id===v.cliente_id)?.nombre||"Mostrador",
+          })) : [],
+          modo: modoCierre,
         });
         setCajaActual(null);
         setShowCierre(false);
@@ -1898,100 +1902,180 @@ export default function POS({ usuario, onLogout }) {
       )}
       {ticketCierre&&(
         <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,backdropFilter:"blur(3px)"}}>
-          <div style={{background:"#fff",borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",width:"440px",maxWidth:"95vw",maxHeight:"90vh",overflowY:"auto",padding:24}}>
-            <div style={{fontFamily:"'Courier New',monospace"}}>
+          <div style={{background:"#fff",borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",width:"520px",maxWidth:"95vw",maxHeight:"92vh",overflowY:"auto",padding:24}}>
+            <div style={{fontFamily:"'Courier New',monospace",fontSize:12}}>
+
+              {/* ── ENCABEZADO ── */}
               <div style={{textAlign:"center",borderBottom:"1px dashed #E2E8F0",paddingBottom:12,marginBottom:12}}>
-                <div style={{fontSize:11,color:"#94A3B8",letterSpacing:2}}>CIERRE DE CAJA</div>
-                <div style={{fontSize:18,fontWeight:700,color:"#1E293B",fontFamily:"Inter,sans-serif"}}>Smart Valion POS</div>
-                <div style={{fontSize:11,color:"#475569"}}>{ticketCierre.sucursal} · Serie {ticketCierre.serie}</div>
-              </div>
-              {[
-                {label:"Cajero",   value:ticketCierre.cajero},
-                {label:"Apertura", value:new Date(ticketCierre.abierta_at).toLocaleString("es-GT")},
-                {label:"Cierre",   value:new Date(ticketCierre.cerrada_at).toLocaleString("es-GT")},
-              ].map(s=>(
-                <div key={s.label} style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                  <span style={{color:"#475569",fontSize:12}}>{s.label}</span>
-                  <span style={{color:"#1E293B",fontSize:12,fontWeight:600}}>{s.value}</span>
+                <div style={{fontSize:10,color:"#94A3B8",letterSpacing:2,marginBottom:2}}>REPORTE DE CIERRE DE CAJA</div>
+                <div style={{fontSize:16,fontWeight:700,color:"#1E293B",fontFamily:"Inter,sans-serif"}}>Smart Valion POS</div>
+                <div style={{fontSize:11,color:"#475569"}}>{ticketCierre.sucursal} — Serie {ticketCierre.serie}</div>
+                <div style={{fontSize:10,color:"#94A3B8",marginTop:4}}>
+                  Apertura: {new Date(ticketCierre.abierta_at).toLocaleString("es-GT")}
                 </div>
-              ))}
-              <div style={{borderTop:"1px dashed #E2E8F0",paddingTop:10,marginTop:8,marginBottom:10}}>
-                <div style={{color:"#475569",fontSize:11,fontWeight:600,marginBottom:6}}>VENTAS DEL TURNO:</div>
+                <div style={{fontSize:10,color:"#94A3B8"}}>
+                  Cierre: {new Date(ticketCierre.cerrada_at).toLocaleString("es-GT")}
+                </div>
+                <div style={{fontSize:11,color:"#1E293B",fontWeight:600,marginTop:4}}>Cajero: {ticketCierre.cajero}</div>
+              </div>
+
+              {/* ── DETALLADO: FACTURAS ── */}
+              {ticketCierre.modo==="detallado"&&(
+                <div>
+                  {/* Efectivo */}
+                  {ticketCierre.ventas.filter(v=>(v.metodo_pago||"").includes("cash")).length>0&&(
+                    <div style={{marginBottom:10}}>
+                      <div style={{background:"#E2E8F0",padding:"3px 8px",fontWeight:700,fontSize:11,marginBottom:4}}>VENTAS AL CONTADO — EFECTIVO</div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr",gap:4,padding:"2px 4px",borderBottom:"1px solid #E2E8F0",marginBottom:2}}>
+                        {["Corr.","Cliente","Total"].map(h=><span key={h} style={{color:"#94A3B8",fontSize:10,fontWeight:600}}>{h}</span>)}
+                      </div>
+                      {ticketCierre.ventas.filter(v=>(v.metodo_pago||"").includes("cash")).map(v=>(
+                        <div key={v.id} style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr",gap:4,padding:"2px 4px",borderBottom:"1px dotted #E2E8F0"}}>
+                          <span style={{color:"#3B82F6",fontSize:10}}>{v.correlativo}</span>
+                          <span style={{color:"#475569",fontSize:10,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v._clienteNombre||"Mostrador"}</span>
+                          <span style={{color:"#1E293B",fontSize:10,textAlign:"right"}}>{fmt(v.total)}</span>
+                        </div>
+                      ))}
+                      <div style={{display:"flex",justifyContent:"space-between",padding:"3px 4px",borderTop:"1px solid #475569",marginTop:2}}>
+                        <span style={{fontWeight:700,fontSize:10}}>Subtotal efectivo</span>
+                        <span style={{fontWeight:700,fontSize:10}}>{fmt(ticketCierre.ventas.filter(v=>(v.metodo_pago||"").includes("cash")).reduce((s,v)=>s+parseFloat(v.total||0),0))}</span>
+                      </div>
+                    </div>
+                  )}
+                  {/* Tarjeta */}
+                  {ticketCierre.ventas.filter(v=>(v.metodo_pago||"").includes("card")).length>0&&(
+                    <div style={{marginBottom:10}}>
+                      <div style={{background:"#E2E8F0",padding:"3px 8px",fontWeight:700,fontSize:11,marginBottom:4}}>VENTAS AL CONTADO — TARJETA</div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr",gap:4,padding:"2px 4px",borderBottom:"1px solid #E2E8F0",marginBottom:2}}>
+                        {["Corr.","Cliente","Total"].map(h=><span key={h} style={{color:"#94A3B8",fontSize:10,fontWeight:600}}>{h}</span>)}
+                      </div>
+                      {ticketCierre.ventas.filter(v=>(v.metodo_pago||"").includes("card")).map(v=>(
+                        <div key={v.id} style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr",gap:4,padding:"2px 4px",borderBottom:"1px dotted #E2E8F0"}}>
+                          <span style={{color:"#3B82F6",fontSize:10}}>{v.correlativo}</span>
+                          <span style={{color:"#475569",fontSize:10,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v._clienteNombre||"Mostrador"}</span>
+                          <span style={{color:"#1E293B",fontSize:10,textAlign:"right"}}>{fmt(v.total)}</span>
+                        </div>
+                      ))}
+                      <div style={{display:"flex",justifyContent:"space-between",padding:"3px 4px",borderTop:"1px solid #475569",marginTop:2}}>
+                        <span style={{fontWeight:700,fontSize:10}}>Subtotal tarjeta</span>
+                        <span style={{fontWeight:700,fontSize:10}}>{fmt(ticketCierre.ventas.filter(v=>(v.metodo_pago||"").includes("card")).reduce((s,v)=>s+parseFloat(v.total||0),0))}</span>
+                      </div>
+                    </div>
+                  )}
+                  {/* Transferencia */}
+                  {ticketCierre.ventas.filter(v=>(v.metodo_pago||"").includes("transfer")).length>0&&(
+                    <div style={{marginBottom:10}}>
+                      <div style={{background:"#E2E8F0",padding:"3px 8px",fontWeight:700,fontSize:11,marginBottom:4}}>VENTAS AL CONTADO — TRANSFERENCIA</div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr",gap:4,padding:"2px 4px",borderBottom:"1px solid #E2E8F0",marginBottom:2}}>
+                        {["Corr.","Cliente","Total"].map(h=><span key={h} style={{color:"#94A3B8",fontSize:10,fontWeight:600}}>{h}</span>)}
+                      </div>
+                      {ticketCierre.ventas.filter(v=>(v.metodo_pago||"").includes("transfer")).map(v=>(
+                        <div key={v.id} style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr",gap:4,padding:"2px 4px",borderBottom:"1px dotted #E2E8F0"}}>
+                          <span style={{color:"#3B82F6",fontSize:10}}>{v.correlativo}</span>
+                          <span style={{color:"#475569",fontSize:10,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v._clienteNombre||"Mostrador"}</span>
+                          <span style={{color:"#1E293B",fontSize:10,textAlign:"right"}}>{fmt(v.total)}</span>
+                        </div>
+                      ))}
+                      <div style={{display:"flex",justifyContent:"space-between",padding:"3px 4px",borderTop:"1px solid #475569",marginTop:2}}>
+                        <span style={{fontWeight:700,fontSize:10}}>Subtotal transferencia</span>
+                        <span style={{fontWeight:700,fontSize:10}}>{fmt(ticketCierre.ventas.filter(v=>(v.metodo_pago||"").includes("transfer")).reduce((s,v)=>s+parseFloat(v.total||0),0))}</span>
+                      </div>
+                    </div>
+                  )}
+                  {/* Crédito */}
+                  {ticketCierre.ventas.filter(v=>(v.metodo_pago||"").includes("credit")).length>0&&(
+                    <div style={{marginBottom:10}}>
+                      <div style={{background:"#E2E8F0",padding:"3px 8px",fontWeight:700,fontSize:11,marginBottom:4}}>VENTAS AL CRÉDITO</div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr",gap:4,padding:"2px 4px",borderBottom:"1px solid #E2E8F0",marginBottom:2}}>
+                        {["Corr.","Cliente","Total"].map(h=><span key={h} style={{color:"#94A3B8",fontSize:10,fontWeight:600}}>{h}</span>)}
+                      </div>
+                      {ticketCierre.ventas.filter(v=>(v.metodo_pago||"").includes("credit")).map(v=>(
+                        <div key={v.id} style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr",gap:4,padding:"2px 4px",borderBottom:"1px dotted #E2E8F0"}}>
+                          <span style={{color:"#3B82F6",fontSize:10}}>{v.correlativo}</span>
+                          <span style={{color:"#475569",fontSize:10,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v._clienteNombre||"Mostrador"}</span>
+                          <span style={{color:"#1E293B",fontSize:10,textAlign:"right"}}>{fmt(v.total)}</span>
+                        </div>
+                      ))}
+                      <div style={{display:"flex",justifyContent:"space-between",padding:"3px 4px",borderTop:"1px solid #475569",marginTop:2}}>
+                        <span style={{fontWeight:700,fontSize:10}}>Subtotal crédito</span>
+                        <span style={{fontWeight:700,fontSize:10}}>{fmt(ticketCierre.totalCredito)}</span>
+                      </div>
+                    </div>
+                  )}
+                  {/* Créditos cobrados */}
+                  {ticketCierre.abonos?.length>0&&(
+                    <div style={{marginBottom:10}}>
+                      <div style={{background:"#E2E8F0",padding:"3px 8px",fontWeight:700,fontSize:11,marginBottom:4}}>CRÉDITOS COBRADOS</div>
+                      {ticketCierre.abonos.map((a,i)=>(
+                        <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:4,padding:"2px 4px",borderBottom:"1px dotted #E2E8F0"}}>
+                          <span style={{color:"#475569",fontSize:10}}>{a._clienteNombre||"Cliente"}</span>
+                          <span style={{color:"#16A34A",fontSize:10,textAlign:"right"}}>{fmt(a.monto)}</span>
+                        </div>
+                      ))}
+                      <div style={{display:"flex",justifyContent:"space-between",padding:"3px 4px",borderTop:"1px solid #475569",marginTop:2}}>
+                        <span style={{fontWeight:700,fontSize:10}}>Subtotal cobrado</span>
+                        <span style={{fontWeight:700,fontSize:10}}>{fmt(ticketCierre.totalAbonos)}</span>
+                      </div>
+                    </div>
+                  )}
+                  {/* Salidas */}
+                  {ticketCierre.salidas?.length>0&&(
+                    <div style={{marginBottom:10}}>
+                      <div style={{background:"#E2E8F0",padding:"3px 8px",fontWeight:700,fontSize:11,marginBottom:4}}>SALIDAS DE EFECTIVO</div>
+                      {ticketCierre.salidas.map((s,i)=>(
+                        <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:4,padding:"2px 4px",borderBottom:"1px dotted #E2E8F0"}}>
+                          <span style={{color:"#475569",fontSize:10}}>{s.motivo}</span>
+                          <span style={{color:"#DC2626",fontSize:10,textAlign:"right"}}>-{fmt(s.monto)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── RESUMEN DE CIERRE (ambos modos) ── */}
+              <div style={{borderTop:"2px solid #1E293B",paddingTop:8,marginTop:8}}>
+                <div style={{background:"#1E293B",color:"#fff",padding:"4px 8px",fontWeight:700,fontSize:12,textAlign:"center",marginBottom:8,borderRadius:4}}>
+                  RESUMEN DE CIERRE
+                </div>
                 {[
-                  {label:"Efectivo",          value:ticketCierre.totalEfectivo},
-                  {label:"Tarjeta",           value:ticketCierre.totalTarjeta},
-                  {label:"Transferencia",     value:ticketCierre.totalTransfer},
-                  {label:"Crédito",           value:ticketCierre.totalCredito},
-                  {label:"Créditos cobrados", value:ticketCierre.totalAbonos},
+                  {label:"Total de Ventas",       value:ticketCierre.totalVentas,                                bold:false},
+                  {label:"Total Transferencias",  value:ticketCierre.totalTransfer,                             bold:false},
+                  {label:"Sub Total de Efectivo", value:ticketCierre.totalEfectivo+ticketCierre.totalAbonos+parseFloat(ticketCierre.fondo||0), bold:true},
+                  {label:"Salidas de Efectivo",   value:ticketCierre.totalSalidas,                              bold:false},
+                  {label:"Total de Efectivo",     value:ticketCierre.efectivoEsperado,                          bold:true},
                 ].map(r=>(
-                  <div key={r.label} style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                    <span style={{color:"#475569",fontSize:12}}>{r.label}</span>
-                    <span style={{color:"#1E293B",fontSize:12}}>{fmt(r.value)}</span>
+                  <div key={r.label} style={{display:"flex",justifyContent:"space-between",padding:"3px 4px",borderBottom:"1px dotted #E2E8F0"}}>
+                    <span style={{fontSize:11,fontWeight:r.bold?700:400,color:"#1E293B"}}>{r.label}</span>
+                    <span style={{fontSize:11,fontWeight:r.bold?700:400,color:"#1E293B"}}>{fmt(r.value)}</span>
                   </div>
                 ))}
-                <div style={{display:"flex",justifyContent:"space-between",paddingTop:6,borderTop:"1px dashed #E2E8F0",marginTop:4}}>
-                  <span style={{color:"#1E293B",fontSize:13,fontWeight:700}}>Total ventas</span>
-                  <span style={{color:"#3B82F6",fontSize:13,fontWeight:700}}>{fmt(ticketCierre.totalVentas)}</span>
-                </div>
-              </div>
-              {ticketCierre.salidas?.length>0&&(
-                <div style={{borderTop:"1px dashed #E2E8F0",paddingTop:10,marginBottom:10}}>
-                  <div style={{color:"#475569",fontSize:11,fontWeight:600,marginBottom:6}}>SALIDAS DE EFECTIVO:</div>
-                  {ticketCierre.salidas.map((s,i)=>(
-                    <div key={i} style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                      <span style={{color:"#475569",fontSize:11}}>{s.motivo}</span>
-                      <span style={{color:"#DC2626",fontSize:11}}>-{fmt(s.monto)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {ticketCierre.modo==="detallado"&&ticketCierre.ventas?.length>0&&(
-                <div style={{borderTop:"1px dashed #E2E8F0",paddingTop:10,marginBottom:10}}>
-                  <div style={{color:"#475569",fontSize:11,fontWeight:600,marginBottom:6}}>FACTURAS DEL TURNO:</div>
-                  {ticketCierre.ventas.map(v=>(
-                    <div key={v.id} style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                      <span style={{color:"#3B82F6",fontSize:11}}>{v.correlativo}</span>
-                      <span style={{color:"#1E293B",fontSize:11}}>{fmt(v.total)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div style={{borderTop:"1px dashed #E2E8F0",paddingTop:10,marginBottom:10}}>
-                <div style={{color:"#475569",fontSize:11,fontWeight:600,marginBottom:6}}>RESUMEN EFECTIVO:</div>
-                {[
-                  {label:"Fondo inicial",       value:fmt(ticketCierre.fondo)},
-                  {label:"+ Ventas efectivo",   value:fmt(ticketCierre.totalEfectivo)},
-                  {label:"+ Créditos cobrados", value:fmt(ticketCierre.totalAbonos)},
-                  {label:"− Salidas",           value:`-${fmt(ticketCierre.totalSalidas)}`},
-                ].map(r=>(
-                  <div key={r.label} style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                    <span style={{color:"#475569",fontSize:12}}>{r.label}</span>
-                    <span style={{color:"#1E293B",fontSize:12}}>{r.value}</span>
+                <div style={{marginTop:8,borderTop:"1px solid #E2E8F0",paddingTop:6}}>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"3px 4px"}}>
+                    <span style={{fontSize:11,color:"#475569"}}>Efectivo esperado</span>
+                    <span style={{fontSize:11,fontWeight:700,color:"#3B82F6"}}>{fmt(ticketCierre.efectivoEsperado)}</span>
                   </div>
-                ))}
-                <div style={{display:"flex",justifyContent:"space-between",paddingTop:4,borderTop:"1px solid #E2E8F0",marginBottom:3}}>
-                  <span style={{color:"#1E293B",fontSize:12,fontWeight:700}}>Efectivo esperado</span>
-                  <span style={{color:"#3B82F6",fontSize:12,fontWeight:700}}>{fmt(ticketCierre.efectivoEsperado)}</span>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"3px 4px"}}>
+                    <span style={{fontSize:11,color:"#475569"}}>Efectivo declarado</span>
+                    <span style={{fontSize:11,fontWeight:700,color:"#16A34A"}}>{fmt(ticketCierre.efectivoDecl)}</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"5px 4px",background:ticketCierre.diferencia===0?"#F0FDF4":ticketCierre.diferencia>0?"#EFF6FF":"#FEF2F2",borderRadius:4,marginTop:4}}>
+                    <span style={{fontSize:12,fontWeight:700,color:ticketCierre.diferencia===0?"#16A34A":ticketCierre.diferencia>0?"#3B82F6":"#DC2626"}}>
+                      {ticketCierre.diferencia===0?"✓ Cuadra exacto":ticketCierre.diferencia>0?"⬆ Sobrante":"⬇ Faltante"}
+                    </span>
+                    <span style={{fontSize:12,fontWeight:700,color:ticketCierre.diferencia===0?"#16A34A":ticketCierre.diferencia>0?"#3B82F6":"#DC2626"}}>
+                      {ticketCierre.diferencia===0?"":fmt(Math.abs(ticketCierre.diferencia))}
+                    </span>
+                  </div>
                 </div>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                  <span style={{color:"#1E293B",fontSize:12,fontWeight:700}}>Efectivo declarado</span>
-                  <span style={{color:"#16A34A",fontSize:12,fontWeight:700}}>{fmt(ticketCierre.efectivoDecl)}</span>
-                </div>
-                <div style={{display:"flex",justifyContent:"space-between",padding:"6px 10px",borderRadius:6,background:ticketCierre.diferencia===0?"#F0FDF4":ticketCierre.diferencia>0?"#EFF6FF":"#FEF2F2"}}>
-                  <span style={{color:ticketCierre.diferencia===0?"#16A34A":ticketCierre.diferencia>0?"#3B82F6":"#DC2626",fontSize:13,fontWeight:700}}>
-                    {ticketCierre.diferencia===0?"✓ Cuadra exacto":ticketCierre.diferencia>0?"⬆ Sobrante":"⬇ Faltante"}
-                  </span>
-                  <span style={{color:ticketCierre.diferencia===0?"#16A34A":ticketCierre.diferencia>0?"#3B82F6":"#DC2626",fontSize:13,fontWeight:700}}>
-                    {ticketCierre.diferencia===0?"":fmt(Math.abs(ticketCierre.diferencia))}
-                  </span>
-                </div>
+                {ticketCierre.observaciones&&(
+                  <div style={{marginTop:8,padding:"4px 8px",background:"#F8F9FB",borderRadius:4,fontSize:10,color:"#475569"}}>
+                    Obs: {ticketCierre.observaciones}
+                  </div>
+                )}
               </div>
-              {ticketCierre.observaciones&&(
-                <div style={{marginBottom:12}}>
-                  <span style={{color:"#475569",fontSize:12}}>Obs: {ticketCierre.observaciones}</span>
-                </div>
-              )}
-              <div style={{textAlign:"center",color:"#94A3B8",fontSize:10,marginBottom:16}}>*** Documento interno ***</div>
+
+              <div style={{textAlign:"center",color:"#94A3B8",fontSize:10,margin:"12px 0"}}>*** Documento interno — no es comprobante fiscal ***</div>
               <div style={{display:"flex",gap:8}}>
                 <button onClick={()=>window.print()} style={{flex:1,padding:10,borderRadius:8,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:13,cursor:"pointer"}}>🖨️ Imprimir</button>
                 <button onClick={()=>setTicketCierre(null)} style={{flex:1,padding:10,borderRadius:8,border:"none",background:"#3B82F6",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>✓ Cerrar</button>
