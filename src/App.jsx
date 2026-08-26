@@ -583,10 +583,21 @@ function TicketModal({ ticket, bancos, onClose, isMobile }) {
           {ticket.items.map(item=>{
             const l=calcLine(item,ticket.ivaConfig);
             return(
-              <div key={item.id} style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                <span style={{color:C.textMd,fontSize:12,flex:1}}>{item.nombre}</span>
-                <span style={{color:C.textSm,fontSize:12,width:36,textAlign:"center"}}>x{item.qty}</span>
-                <span style={{color:C.text,fontSize:12,width:72,textAlign:"right"}}>{fmt(l.total)}</span>
+              <div key={`${item.id}-${item.precio}`} style={{marginBottom:6}}>
+                <div style={{display:"flex",justifyContent:"space-between"}}>
+                  <span style={{color:C.textMd,fontSize:12,flex:1}}>{item._esCombo?"🎁 ":""}{item.nombre}</span>
+                  <span style={{color:C.textSm,fontSize:12,width:36,textAlign:"center"}}>x{item.qty}</span>
+                  <span style={{color:C.text,fontSize:12,width:72,textAlign:"right"}}>{fmt(l.total)}</span>
+                </div>
+                {item._esCombo&&item._comp?.length>0&&(
+                  <div style={{paddingLeft:8,marginTop:2}}>
+                    {item._comp.map((cp,ci)=>(
+                      <div key={ci} style={{color:C.textSm,fontSize:10}}>
+                        └ {cp.cantidad}x {cp._nombre||`Producto ${cp.producto_id}`}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1062,7 +1073,13 @@ export default function POS({ usuario, onLogout }) {
       setProducts(prev=>prev.map(p=>{const ic=cart.find(i=>i.id===p.id);return ic?{...p,stock:p.stock-ic.qty}:p;}));
       const ticket={
         correlativo, date:new Date().toLocaleString("es-GT"),
-        customer, items:[...cart],
+        customer, items:cart.map(item=>({
+          ...item,
+          _comp: item._esCombo ? item._comp?.map(cp=>({
+            ...cp,
+            _nombre: products.find(p=>p.id===cp.producto_id)?.nombre||`Producto ${cp.producto_id}`,
+          })) : undefined,
+        })),
         base:cartBase, iva:cartIva, total:cartTotal,
         ivaConfig:{...ivaConfig}, hayDesglose, pagos,
       };
@@ -1217,10 +1234,25 @@ export default function POS({ usuario, onLogout }) {
       ):cart.map(item=>{
         const l=calcLine(item,ivaConfig);
         return(
-          <div key={item.id} style={{padding:mobile?"12px 16px":"10px 16px",borderBottom:`1px solid ${C.border}`}}>
+          <div key={`${item.id}-${item.precio}`} style={{padding:mobile?"12px 16px":"10px 16px",borderBottom:`1px solid ${C.border}`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
               <div style={{flex:1,marginRight:8}}>
-                <div style={{color:C.text,fontSize:mobile?14:13,fontWeight:500,lineHeight:1.3}}>{item.nombre}</div>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  {item._esCombo&&<span style={{fontSize:14}}>🎁</span>}
+                  <div style={{color:C.text,fontSize:mobile?14:13,fontWeight:500,lineHeight:1.3}}>{item.nombre}</div>
+                </div>
+                {item._esCombo&&item._comp?.length>0&&(
+                  <div style={{marginTop:4,paddingLeft:20}}>
+                    {item._comp.map((cp,ci)=>{
+                      const prod = products.find(p=>p.id===cp.producto_id);
+                      return(
+                        <div key={ci} style={{color:C.textSm,fontSize:11,marginBottom:1}}>
+                          └ {cp.cantidad}x {prod?.nombre||"Producto"}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 <div style={{color:C.textSm,fontSize:11,marginTop:2}}>{fmt(item.precio)} c/u</div>
               </div>
               <button onClick={()=>removeItem(item.id)} style={{color:C.textSm,background:"none",border:"none",cursor:"pointer",fontSize:mobile?20:16,padding:2}}>✕</button>
