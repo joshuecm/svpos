@@ -956,7 +956,25 @@ export default function POS({ usuario, onLogout }) {
   };
 
   // Recargar detalle de caja cuando cambia la caja o la pestaña activa
-  useEffect(()=>{ if(cajaActual) cargarCajaDetalle(cajaActual); },[cajaActual?.id, activeTab]);
+  useEffect(()=>{
+    let cancelled = false;
+    const cargar = async () => {
+      if(!cajaActual) return;
+      try {
+        const fechaAbierta = cajaActual.abierta_at.replace(' ', '+');
+        const [sal, abon] = await Promise.all([
+          sb("salidas_caja","GET",null,`?caja_id=eq.${cajaActual.id}&order=created_at.asc`),
+          sb("abonos_credito","GET",null,`?cajero=eq.${encodeURIComponent(cajaActual.cajero)}&created_at=gte.${encodeURIComponent(fechaAbierta)}&order=created_at.asc`),
+        ]);
+        if(!cancelled){
+          setCajaSalidas(sal||[]);
+          setCajaAbonos(abon||[]);
+        }
+      } catch(e){ console.error("Error cargando detalle caja:", e); }
+    };
+    if(activeTab==="caja") cargar();
+    return ()=>{ cancelled=true; };
+  },[cajaActual?.id, activeTab]);
 
   const notify = (msg,type="success") => {
     setNotification({msg,type});
