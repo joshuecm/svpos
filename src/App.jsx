@@ -854,6 +854,8 @@ export default function POS({ usuario, onLogout }) {
   const [showAperturaCaja,     setShowAperturaCaja]     = useState(false);
   const [showCombosModal,      setShowCombosModal]      = useState(false);
   const [ticketCierre,         setTicketCierre]         = useState(null);
+  const [cajaSalidas,          setCajaSalidas]          = useState([]);
+  const [cajaAbonos,           setCajaAbonos]           = useState([]);
   const [combos,               setCombos]               = useState([]);
   const [modoInventarioAdmin,  setModoInventarioAdmin]  = useState(true);
   const [showPrecioModal,   setShowPrecioModal]   = useState(false);
@@ -937,7 +939,20 @@ export default function POS({ usuario, onLogout }) {
     setLoading(false);
   }
 
-  const notify = (msg,type="success") => {
+  const cargarCajaDetalle = async (caja) => {
+    if(!caja) return;
+    try {
+      const [sal, abon] = await Promise.all([
+        sb("salidas_caja","GET",null,`?caja_id=eq.${caja.id}&order=created_at.asc`),
+        sb("abonos_credito","GET",null,`?cajero=eq.${encodeURIComponent(caja.cajero)}&created_at=gte.${caja.abierta_at}&order=created_at.asc`),
+      ]);
+      setCajaSalidas(sal||[]);
+      setCajaAbonos(abon||[]);
+    } catch(e){ console.error("Error cargando detalle caja:", e); }
+  };
+
+  // Recargar detalle de caja cuando cambia la caja o la pestaña activa
+  useEffect(()=>{ if(cajaActual&&activeTab==="caja") cargarCajaDetalle(cajaActual); },[cajaActual?.id, activeTab]);
     setNotification({msg,type});
     setTimeout(()=>setNotification(null),3000);
   };
@@ -1448,25 +1463,10 @@ export default function POS({ usuario, onLogout }) {
     const [efectivoDecl,  setEfectivoDecl]  = useState("");
     const [obsDecl,       setObsDecl]       = useState("");
     const [cerrando,      setCerrando]      = useState(false);
-    const [salidas,       setSalidas]       = useState([]);
-    const [abonos,        setAbonos]        = useState([]);
+    const salidas = cajaSalidas;
+    const abonos  = cajaAbonos;
     const [loadingCaja,   setLoadingCaja]   = useState(false);
     const [errCaja,       setErrCaja]       = useState("");
-
-    useEffect(()=>{ if(cajaActual) cargarDetalle(); },[cajaActual?.id, activeTab]);
-
-    const cargarDetalle = async () => {
-      setLoadingCaja(true);
-      try {
-        const [sal, abon] = await Promise.all([
-          sb("salidas_caja","GET",null,`?caja_id=eq.${cajaActual.id}&order=created_at.asc`),
-          sb("abonos_credito","GET",null,`?cajero=eq.${encodeURIComponent(cajaActual.cajero)}&created_at=gte.${cajaActual.abierta_at}&order=created_at.asc`),
-        ]);
-        setSalidas(sal||[]);
-        setAbonos(abon||[]);
-      } catch {}
-      setLoadingCaja(false);
-    };
 
     const abrirCaja = async () => {
       if(!fondoInput||parseFloat(fondoInput)<0){ setErrCaja("Ingresa el fondo inicial"); return; }
@@ -1499,7 +1499,7 @@ export default function POS({ usuario, onLogout }) {
         });
         setSalidaMonto(""); setSalidaMotivo("");
         setShowSalida(false);
-        await cargarDetalle();
+        await cargarCajaDetalle(cajaActual);
       } catch(e){ setErrCaja("Error: "+e.message); }
       setGuardandoSal(false);
     };
@@ -1566,7 +1566,7 @@ export default function POS({ usuario, onLogout }) {
       <div style={{padding:isMobile?12:24,paddingBottom:isMobile?80:24}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <h2 style={{color:C.text,fontSize:18,fontWeight:700}}>🏪 Caja</h2>
-          <button onClick={()=>{loadAll();if(cajaActual)cargarDetalle();setErrCaja("");}} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
+          <button onClick={()=>{loadAll();if(cajaActual)cargarCajaDetalle(cajaActual);setErrCaja("");}} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
         </div>
 
         {errCaja&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"8px 14px",color:"#DC2626",fontSize:13,marginBottom:14}}>{errCaja}</div>}
@@ -1683,7 +1683,7 @@ export default function POS({ usuario, onLogout }) {
                 <button onClick={()=>{setShowSalida(true);setShowCierre(false);setErrCaja("");}} style={{...BS,flex:1,padding:12}}>
                   💸 Salida de efectivo
                 </button>
-                <button onClick={()=>{setShowCierre(true);setShowSalida(false);setErrCaja("");cargarDetalle();}} style={{flex:2,padding:12,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer"}}>
+                <button onClick={()=>{setShowCierre(true);setShowSalida(false);setErrCaja("");cargarCajaDetalle(cajaActual);}} style={{flex:2,padding:12,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer"}}>
                   🔒 Cerrar caja
                 </button>
               </div>
