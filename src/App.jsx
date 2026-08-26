@@ -1453,7 +1453,7 @@ export default function POS({ usuario, onLogout }) {
     const [loadingCaja,   setLoadingCaja]   = useState(false);
     const [errCaja,       setErrCaja]       = useState("");
 
-    useEffect(()=>{ if(cajaActual) cargarDetalle(); },[cajaActual?.id]);
+    useEffect(()=>{ if(cajaActual) cargarDetalle(); },[cajaActual?.id, activeTab]);
 
     const cargarDetalle = async () => {
       setLoadingCaja(true);
@@ -1566,7 +1566,7 @@ export default function POS({ usuario, onLogout }) {
       <div style={{padding:isMobile?12:24,paddingBottom:isMobile?80:24}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <h2 style={{color:C.text,fontSize:18,fontWeight:700}}>🏪 Caja</h2>
-          <button onClick={()=>{loadAll();if(cajaActual)cargarDetalle();}} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
+          <button onClick={()=>{loadAll();if(cajaActual)cargarDetalle();setErrCaja("");}} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
         </div>
 
         {errCaja&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"8px 14px",color:"#DC2626",fontSize:13,marginBottom:14}}>{errCaja}</div>}
@@ -1683,7 +1683,7 @@ export default function POS({ usuario, onLogout }) {
                 <button onClick={()=>{setShowSalida(true);setShowCierre(false);setErrCaja("");}} style={{...BS,flex:1,padding:12}}>
                   💸 Salida de efectivo
                 </button>
-                <button onClick={()=>{setShowCierre(true);setShowSalida(false);setErrCaja("");}} style={{flex:2,padding:12,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer"}}>
+                <button onClick={()=>{setShowCierre(true);setShowSalida(false);setErrCaja("");cargarDetalle();}} style={{flex:2,padding:12,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer"}}>
                   🔒 Cerrar caja
                 </button>
               </div>
