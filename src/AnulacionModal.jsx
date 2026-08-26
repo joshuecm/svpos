@@ -21,28 +21,34 @@ async function sb(table, method="GET", body=null, query="") {
 
 const fmt = (n) => `Q ${Number(n||0).toFixed(2)}`;
 
-export default function AnulacionModal({ venta, usuario, onClose, onAnulada, isMobile }) {
-  const [paso,    setPaso]    = useState("motivo"); // motivo | pin
-  const [motivo,  setMotivo]  = useState("");
-  const [pin,     setPin]     = useState("");
-  const [error,   setError]   = useState("");
-  const [saving,  setSaving]  = useState(false);
+export default function AnulacionModal({ venta, usuario, cajaActual, onClose, onAnulada, isMobile }) {
+  const [paso,   setPaso]   = useState("motivo");
+  const [motivo, setMotivo] = useState("");
+  const [pin,    setPin]    = useState("");
+  const [error,  setError]  = useState("");
+  const [saving, setSaving] = useState(false);
 
   const MOTIVOS = [
     "Error en producto",
     "Error en precio",
     "Cliente canceló",
     "Factura duplicada",
+    "Devolución de producto",
     "Error de sistema",
     "Otro",
   ];
 
-  const agregarDigito = (d) => {
-    if(pin.length<4) setPin(p=>p+d);
-  };
+  // Verificar si la factura es del turno actual
+  const esTurnoActual = cajaActual &&
+    new Date(venta.created_at) >= new Date(cajaActual.abierta_at) &&
+    venta.cajero === cajaActual.cajero;
+
+  const cajaAbierta = !!cajaActual;
+
+  const agregarDigito = (d) => { if(pin.length<4) setPin(p=>p+d); };
   const borrar = () => setPin(p=>p.slice(0,-1));
 
-  const confirmarAnulacion = async () => {
+  const confirmarDevolucion = async () => {
     if(pin.length!==4){ setError("El PIN debe ser de 4 dígitos"); return; }
     setSaving(true); setError("");
     try {
@@ -52,22 +58,23 @@ export default function AnulacionModal({ venta, usuario, onClose, onAnulada, isM
 
       const autorizador = usuarios[0];
 
-      // Verificar permisos del autorizador
-      const permisos = await sb("rol_permisos","GET",null,`?rol_id=eq.${autorizador.rol_id}&permiso=in.(anular_propio,anular_otros)&valor=eq.true`);
-      const puedeAnularOtros = permisos?.some(p=>p.permiso==="anular_otros");
+      // Verificar permisos
+      const permisos = await sb("rol_permisos","GET",null,
+        `?rol_id=eq.${autorizador.rol_id}&permiso=in.(anular_propio,anular_otros)&valor=eq.true`
+      );
+      const puedeAnularOtros  = permisos?.some(p=>p.permiso==="anular_otros");
       const puedeAnularPropio = permisos?.some(p=>p.permiso==="anular_propio");
 
-      // Verificar si puede anular esta factura
       if(!puedeAnularOtros && !puedeAnularPropio){
-        setError(`${autorizador.nombre} no tiene permiso para anular facturas`);
+        setError(`${autorizador.nombre} no tiene permiso para autorizar devoluciones`);
         setSaving(false); return;
       }
       if(!puedeAnularOtros && puedeAnularPropio && autorizador.nombre!==venta.cajero){
-        setError(`${autorizador.nombre} solo puede anular sus propias facturas`);
+        setError(`${autorizador.nombre} solo puede autorizar devoluciones de sus propias facturas`);
         setSaving(false); return;
       }
 
-      // Registrar anulación
+      // Registrar en tabla anulaciones
       await sb("anulaciones","POST",{
         venta_id:       venta.id,
         correlativo:    venta.correlativo,
@@ -78,27 +85,29 @@ export default function AnulacionModal({ venta, usuario, onClose, onAnulada, isM
       });
 
       // Marcar venta como anulada
-      await sb(`ventas?id=eq.${venta.id}`,"PATCH",{ anulada:true, motivo_anulacion:motivo });
+      await sb(`ventas?id=eq.${venta.id}`,"PATCH",{
+        anulada: true,
+        motivo_anulacion: motivo,
+      });
 
-      // Cargar detalles de la venta para revertir stock
+      // Cargar detalles para revertir stock
       const detalles = await sb("detalle_ventas","GET",null,`?venta_id=eq.${venta.id}`);
 
-      // Revertir stock de cada producto
+      // Revertir stock producto por producto
       for(const det of (detalles||[])) {
-        const prod = await sb("productos","GET",null,`?id=eq.${det.producto_id}`);
-        if(prod?.[0]) {
-          await sb(`productos?id=eq.${det.producto_id}`,"PATCH",{
-            stock: parseFloat(prod[0].stock||0) + parseFloat(det.cantidad||0)
-          });
+        const prods = await sb("productos","GET",null,`?id=eq.${det.producto_id}`);
+        if(prods?.[0]) {
+          const nuevoStock = parseFloat(prods[0].stock||0) + parseFloat(det.cantidad||0);
+          await sb(`productos?id=eq.${det.producto_id}`,"PATCH",{ stock: nuevoStock });
         }
       }
 
       // Revertir saldo del cliente si era crédito
       if((venta.metodo_pago||"").includes("credit") && venta.cliente_id) {
-        const cliente = await sb("clientes","GET",null,`?id=eq.${venta.cliente_id}`);
-        if(cliente?.[0]) {
+        const clientes = await sb("clientes","GET",null,`?id=eq.${venta.cliente_id}`);
+        if(clientes?.[0]) {
           await sb(`clientes?id=eq.${venta.cliente_id}`,"PATCH",{
-            saldo_credito: Math.max(0, parseFloat(cliente[0].saldo_credito||0) - parseFloat(venta.total||0))
+            saldo_credito: Math.max(0, parseFloat(clientes[0].saldo_credito||0) - parseFloat(venta.total||0))
           });
         }
       }
@@ -108,6 +117,25 @@ export default function AnulacionModal({ venta, usuario, onClose, onAnulada, isM
     setSaving(false);
   };
 
+  // ── Si caja cerrada o no es del turno — bloquear
+  if(!cajaAbierta || !esTurnoActual) {
+    return (
+      <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,backdropFilter:"blur(3px)"}}>
+        <div style={{background:"#fff",borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",width:isMobile?"95vw":"400px",padding:32,textAlign:"center"}}>
+          <div style={{fontSize:48,marginBottom:12}}>🔒</div>
+          <div style={{color:"#1E293B",fontWeight:700,fontSize:16,marginBottom:8}}>No se puede procesar</div>
+          <div style={{color:"#475569",fontSize:14,marginBottom:6}}>
+            {!cajaAbierta
+              ? "La caja está cerrada. Debes tener la caja abierta para procesar devoluciones."
+              : "Esta factura no pertenece al turno actual. Las devoluciones de turnos anteriores se procesan en Fase 2."}
+          </div>
+          <div style={{color:"#94A3B8",fontSize:12,marginBottom:20}}>Factura: {venta.correlativo}</div>
+          <button onClick={onClose} style={{padding:"10px 24px",borderRadius:8,border:"none",background:"#3B82F6",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer"}}>Entendido</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,backdropFilter:"blur(3px)"}}>
       <div style={{background:"#fff",borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",width:isMobile?"95vw":"400px",overflow:"hidden"}}>
@@ -115,7 +143,7 @@ export default function AnulacionModal({ venta, usuario, onClose, onAnulada, isM
         {/* Header */}
         <div style={{background:"#DC2626",padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
-            <div style={{color:"#fff",fontWeight:700,fontSize:16}}>🚫 Anular Factura</div>
+            <div style={{color:"#fff",fontWeight:700,fontSize:16}}>↩️ Devolución</div>
             <div style={{color:"#FCA5A5",fontSize:12}}>{venta.correlativo} · {fmt(venta.total)}</div>
           </div>
           <button onClick={onClose} style={{background:"none",border:"none",color:"#fff",fontSize:22,cursor:"pointer"}}>✕</button>
@@ -127,7 +155,7 @@ export default function AnulacionModal({ venta, usuario, onClose, onAnulada, isM
           {/* Paso 1: Motivo */}
           {paso==="motivo"&&(
             <>
-              <div style={{color:"#475569",fontSize:13,fontWeight:600,marginBottom:12}}>Selecciona el motivo de anulación</div>
+              <div style={{color:"#475569",fontSize:13,fontWeight:600,marginBottom:12}}>Selecciona el motivo de la devolución</div>
               <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
                 {MOTIVOS.map(m=>(
                   <button key={m} onClick={()=>setMotivo(m)}
@@ -152,7 +180,6 @@ export default function AnulacionModal({ venta, usuario, onClose, onAnulada, isM
               <div style={{textAlign:"center",marginBottom:20}}>
                 <div style={{color:"#475569",fontSize:13,marginBottom:4}}>Motivo: <strong style={{color:"#DC2626"}}>{motivo}</strong></div>
                 <div style={{color:"#1E293B",fontSize:13,fontWeight:600,marginBottom:16}}>Ingresa PIN de autorización</div>
-                {/* Display PIN */}
                 <div style={{display:"flex",justifyContent:"center",gap:12,marginBottom:20}}>
                   {[0,1,2,3].map(i=>(
                     <div key={i} style={{width:48,height:48,borderRadius:10,border:`2px solid ${pin.length>i?"#DC2626":"#E2E8F0"}`,background:pin.length>i?"#FEF2F2":"#F8F9FB",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,color:"#DC2626"}}>
@@ -160,7 +187,6 @@ export default function AnulacionModal({ venta, usuario, onClose, onAnulada, isM
                     </div>
                   ))}
                 </div>
-                {/* Teclado */}
                 <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,maxWidth:240,margin:"0 auto",marginBottom:16}}>
                   {[1,2,3,4,5,6,7,8,9,"",0,"←"].map((d,i)=>(
                     <button key={i} onClick={()=>d==="←"?borrar():d!==""&&agregarDigito(String(d))}
@@ -173,9 +199,9 @@ export default function AnulacionModal({ venta, usuario, onClose, onAnulada, isM
               </div>
               <div style={{display:"flex",gap:10}}>
                 <button onClick={()=>{setPaso("motivo");setPin("");setError("");}} style={{flex:1,padding:10,borderRadius:8,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:14,cursor:"pointer"}}>← Volver</button>
-                <button onClick={confirmarAnulacion} disabled={saving||pin.length!==4}
+                <button onClick={confirmarDevolucion} disabled={saving||pin.length!==4}
                   style={{flex:2,padding:10,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:(saving||pin.length!==4)?0.5:1}}>
-                  {saving?"⏳ Procesando...":"✓ Confirmar anulación"}
+                  {saving?"⏳ Procesando...":"✓ Confirmar devolución"}
                 </button>
               </div>
             </>
