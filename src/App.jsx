@@ -913,6 +913,7 @@ export default function POS({ usuario, onLogout }) {
 
       setProducts(prodsConPrecios);
       setCombos(combosConStock);
+      setCategoriasBD(cats||[]);
       setCustomers(clients||[]);
       setCustomer(clients?.[0]||null);
       setSalesHistory(ventas||[]);
@@ -934,7 +935,16 @@ export default function POS({ usuario, onLogout }) {
     notify("Configuración de IVA guardada ✓");
   };
 
-  const categories = ["Todas",...new Set(products.map(p=>p.categoria))];
+  // Categorías dinámicas desde BD + las que tienen productos/combos
+  const [categoriasBD, setCategoriasBD] = useState([]);
+
+  const categories = [
+    {nombre:"Todas", icono:"🏷️"},
+    ...categoriasBD,
+    // Agregar "Promociones" si hay combos y no está en la BD
+    ...(combos.length>0&&!categoriasBD.find(c=>c.nombre==="Promociones")
+      ? [{nombre:"Promociones",icono:"🎁"}] : []),
+  ];
   const filtered = [
     ...products,
     ...combos,
@@ -1346,8 +1356,8 @@ export default function POS({ usuario, onLogout }) {
           style={{...inputStyle,marginBottom:10,fontSize:isMobile?16:14}}/>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
           {categories.map(cat=>(
-            <button key={cat} onClick={()=>setCategory(cat)} style={{padding:isMobile?"6px 12px":"4px 12px",borderRadius:20,border:`1.5px solid ${category===cat?C.blue:C.border}`,background:category===cat?C.blueBg:C.card,color:category===cat?C.blue:C.textMd,fontSize:isMobile?13:12,cursor:"pointer",fontWeight:category===cat?600:400}}>
-              {cat}
+            <button key={cat.nombre} onClick={()=>setCategory(cat.nombre)} style={{padding:isMobile?"6px 12px":"4px 12px",borderRadius:20,border:`1.5px solid ${category===cat.nombre?C.blue:C.border}`,background:category===cat.nombre?C.blueBg:C.card,color:category===cat.nombre?C.blue:C.textMd,fontSize:isMobile?13:12,cursor:"pointer",fontWeight:category===cat.nombre?600:400}}>
+              {cat.icono} {cat.nombre}
             </button>
           ))}
         </div>
