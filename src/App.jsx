@@ -854,9 +854,7 @@ export default function POS({ usuario, onLogout }) {
   const [showAperturaCaja,     setShowAperturaCaja]     = useState(false);
   const [showCombosModal,      setShowCombosModal]      = useState(false);
   const [ticketCierre,         setTicketCierre]         = useState(null);
-  const [cajaSalidas,          setCajaSalidas]          = useState([]);
-  const [cajaAbonos,           setCajaAbonos]           = useState([]);
-  const [cajaReloadKey,        setCajaReloadKey]        = useState(0);
+
   const [combos,               setCombos]               = useState([]);
   const [modoInventarioAdmin,  setModoInventarioAdmin]  = useState(true);
   const [showPrecioModal,   setShowPrecioModal]   = useState(false);
@@ -940,44 +938,10 @@ export default function POS({ usuario, onLogout }) {
     setLoading(false);
   }
 
-  const cargarCajaDetalle = async (caja) => {
-    if(!caja) return;
-    cajaDetalleLoaded.current = false;
-    try {
-      const fechaAbierta = caja.abierta_at.replace(' ', '+');
-      const [sal, abon] = await Promise.all([
-        sb("salidas_caja","GET",null,`?caja_id=eq.${caja.id}&order=created_at.asc`),
-        sb("abonos_credito","GET",null,`?cajero=eq.${encodeURIComponent(caja.cajero)}&created_at=gte.${encodeURIComponent(fechaAbierta)}&order=created_at.asc`),
-      ]);
-      setCajaSalidas(sal||[]);
-      setCajaAbonos(abon||[]);
-      cajaDetalleLoaded.current = true;
-    } catch(e){ console.error("Error cargando detalle caja:", e); }
-  };
+
 
   // Recargar detalle de caja cuando cambia la caja o la pestaña activa
-  const cajaDetalleLoaded = useRef(false);
 
-  useEffect(()=>{
-    cajaDetalleLoaded.current = false;
-  },[cajaActual?.id]);
-
-  useEffect(()=>{
-    if(!cajaActual||activeTab!=="caja"||cajaDetalleLoaded.current) return;
-    cajaDetalleLoaded.current = true;
-    const cargar = async () => {
-      try {
-        const fechaAbierta = cajaActual.abierta_at.replace(' ', '+');
-        const [sal, abon] = await Promise.all([
-          sb("salidas_caja","GET",null,`?caja_id=eq.${cajaActual.id}&order=created_at.asc`),
-          sb("abonos_credito","GET",null,`?cajero=eq.${encodeURIComponent(cajaActual.cajero)}&created_at=gte.${encodeURIComponent(fechaAbierta)}&order=created_at.asc`),
-        ]);
-        setCajaSalidas(sal||[]);
-        setCajaAbonos(abon||[]);
-      } catch(e){ console.error("Error cargando detalle caja:", e); }
-    };
-    cargar();
-  },[cajaActual?.id, activeTab]);
 
   const notify = (msg,type="success") => {
     setNotification({msg,type});
@@ -1490,10 +1454,41 @@ export default function POS({ usuario, onLogout }) {
     const [efectivoDecl,  setEfectivoDecl]  = useState("");
     const [obsDecl,       setObsDecl]       = useState("");
     const [cerrando,      setCerrando]      = useState(false);
-    const salidas = cajaSalidas;
-    const abonos  = cajaAbonos;
+    const [salidas,       setSalidas]       = useState([]);
+    const [abonos,        setAbonos]        = useState([]);
     const [loadingCaja,   setLoadingCaja]   = useState(false);
     const [errCaja,       setErrCaja]       = useState("");
+    const cargado = useRef(false);
+
+    useEffect(()=>{
+      if(!cajaActual||cargado.current) return;
+      cargado.current = true;
+      const cargar = async () => {
+        try {
+          const fechaAbierta = cajaActual.abierta_at.replace(' ', '+');
+          const [sal, abon] = await Promise.all([
+            sb("salidas_caja","GET",null,`?caja_id=eq.${cajaActual.id}&order=created_at.asc`),
+            sb("abonos_credito","GET",null,`?cajero=eq.${encodeURIComponent(cajaActual.cajero)}&created_at=gte.${encodeURIComponent(fechaAbierta)}&order=created_at.asc`),
+          ]);
+          setSalidas(sal||[]);
+          setAbonos(abon||[]);
+        } catch(e){ console.error(e); }
+      };
+      cargar();
+    },[cajaActual?.id]);
+
+    const recargarDetalle = async () => {
+      if(!cajaActual) return;
+      try {
+        const fechaAbierta = cajaActual.abierta_at.replace(' ', '+');
+        const [sal, abon] = await Promise.all([
+          sb("salidas_caja","GET",null,`?caja_id=eq.${cajaActual.id}&order=created_at.asc`),
+          sb("abonos_credito","GET",null,`?cajero=eq.${encodeURIComponent(cajaActual.cajero)}&created_at=gte.${encodeURIComponent(fechaAbierta)}&order=created_at.asc`),
+        ]);
+        setSalidas(sal||[]);
+        setAbonos(abon||[]);
+      } catch(e){ console.error(e); }
+    };
 
     const abrirCaja = async () => {
       if(!fondoInput||parseFloat(fondoInput)<0){ setErrCaja("Ingresa el fondo inicial"); return; }
@@ -1526,7 +1521,7 @@ export default function POS({ usuario, onLogout }) {
         });
         setSalidaMonto(""); setSalidaMotivo("");
         setShowSalida(false);
-        await cargarCajaDetalle(cajaActual);
+        await recargarDetalle();
       } catch(e){ setErrCaja("Error: "+e.message); }
       setGuardandoSal(false);
     };
@@ -1593,7 +1588,7 @@ export default function POS({ usuario, onLogout }) {
       <div style={{padding:isMobile?12:24,paddingBottom:isMobile?80:24}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <h2 style={{color:C.text,fontSize:18,fontWeight:700}}>🏪 Caja</h2>
-          <button onClick={()=>{loadAll();setCajaReloadKey(k=>k+1);setErrCaja("");}} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
+          <button onClick={()=>{loadAll();recargarDetalle();setErrCaja("");}} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
         </div>
 
         {errCaja&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"8px 14px",color:"#DC2626",fontSize:13,marginBottom:14}}>{errCaja}</div>}
@@ -1710,7 +1705,7 @@ export default function POS({ usuario, onLogout }) {
                 <button onClick={()=>{setShowSalida(true);setShowCierre(false);setErrCaja("");}} style={{...BS,flex:1,padding:12}}>
                   💸 Salida de efectivo
                 </button>
-                <button onClick={()=>{setShowCierre(true);setShowSalida(false);setErrCaja("");cargarCajaDetalle(cajaActual);}} style={{flex:2,padding:12,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer"}}>
+                <button onClick={()=>{recargarDetalle();setShowCierre(true);setShowSalida(false);setErrCaja("");}} style={{flex:2,padding:12,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer"}}>
                   🔒 Cerrar caja
                 </button>
               </div>
