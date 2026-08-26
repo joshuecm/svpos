@@ -1538,33 +1538,48 @@ export default function POS({ usuario, onLogout }) {
 
   const HistoryTab = () => {
     const [busqueda,    setBusqueda]    = useState("");
-    const [fechaDesde, setFechaDesde] = useState("");
-    const [fechaHasta, setFechaHasta] = useState("");
+    const [fechaDesde,  setFechaDesde]  = useState("");
+    const [fechaHasta,  setFechaHasta]  = useState("");
     const [cajeroFiltro,setCajeroFiltro]= useState("");
+    const [resultados,  setResultados]  = useState(null);
+    const [buscando,    setBuscando]    = useState(false);
     const esAdmin = puedo("historial_global");
     const cajeros = [...new Set(salesHistory.map(s=>s.cajero).filter(Boolean))];
-    const filtradas = salesHistory.filter(s=>{
-      const matchCorr   = !busqueda     || (s.correlativo||"").toLowerCase().includes(busqueda.toLowerCase());
-      const fechaVenta  = new Date(s.created_at);
-      const matchDesde  = !fechaDesde  || fechaVenta >= new Date(fechaDesde);
-      const matchHasta  = !fechaHasta  || fechaVenta <= new Date(fechaHasta+"T23:59:59");
-      const matchCajero = !cajeroFiltro || s.cajero===cajeroFiltro;
-      const matchPropio = esAdmin || s.cajero===usuario?.nombre;
-      return matchCorr&&matchDesde&&matchHasta&&matchCajero&&matchPropio;
-    });
     const IS2 = {background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"8px 12px",color:"#1E293B",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box"};
     const METODOS = {cash:"Efectivo",card:"Tarjeta",transfer:"Transferencia",credit:"Crédito"};
+
+    const buscarEnBD = async () => {
+      setBuscando(true);
+      try {
+        let query = "?order=created_at.desc";
+        if(fechaDesde)  query += `&created_at=gte.${fechaDesde}T00:00:00`;
+        if(fechaHasta)  query += `&created_at=lte.${fechaHasta}T23:59:59`;
+        if(cajeroFiltro&&esAdmin) query += `&cajero=eq.${encodeURIComponent(cajeroFiltro)}`;
+        if(!esAdmin)    query += `&cajero=eq.${encodeURIComponent(usuario?.nombre||"")}`;
+        if(busqueda)    query += `&correlativo=ilike.*${encodeURIComponent(busqueda)}*`;
+        const ventas = await sb("ventas","GET",null,query);
+        setResultados(ventas||[]);
+      } catch(e){ console.error(e); }
+      setBuscando(false);
+    };
+
+    const limpiar = () => { setBusqueda(""); setFechaDesde(""); setFechaHasta(""); setCajeroFiltro(""); setResultados(null); };
+
+    const listaBase = resultados !== null ? resultados : salesHistory.filter(s=> esAdmin || s.cajero===usuario?.nombre);
+    const filtradas = listaBase.filter(s=> !busqueda || (s.correlativo||"").toLowerCase().includes(busqueda.toLowerCase()));
+    const hayFiltros = busqueda||fechaDesde||fechaHasta||cajeroFiltro;
+
     return(
       <div style={{padding:isMobile?12:24,paddingBottom:isMobile?80:24}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <h2 style={{color:C.text,fontSize:18,fontWeight:700}}>🧾 Historial de Facturas</h2>
-          <button onClick={loadAll} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
+          <button onClick={()=>{loadAll();setResultados(null);}} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
         </div>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:16}}>
-          <div style={{display:"grid",gridTemplateColumns:esAdmin?"1fr 1fr 1fr 1fr":"1fr 1fr 1fr",gap:10}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":esAdmin?"1fr 1fr 1fr 1fr auto":"1fr 1fr auto",gap:10,marginBottom:8,alignItems:"end"}}>
             <div>
               <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>No. Factura</label>
-              <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar..." style={IS2}/>
+              <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar..." style={IS2} onKeyDown={e=>e.key==="Enter"&&buscarEnBD()}/>
             </div>
             <div>
               <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>Fecha desde</label>
@@ -1583,17 +1598,22 @@ export default function POS({ usuario, onLogout }) {
                 </select>
               </div>
             )}
+            <div style={{display:"flex",gap:6,paddingBottom:1}}>
+              <button onClick={buscarEnBD} disabled={buscando} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blue,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",opacity:buscando?0.6:1,whiteSpace:"nowrap"}}>
+                {buscando?"⏳":"🔍 Buscar"}
+              </button>
+              {hayFiltros&&<button onClick={limpiar} style={{padding:"8px 10px",borderRadius:8,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:13,cursor:"pointer"}}>✕</button>}
+            </div>
           </div>
-          {(busqueda||fechaDesde||fechaHasta||cajeroFiltro)&&(
-            <button onClick={()=>{setBusqueda("");setFechaDesde("");setFechaHasta("");setCajeroFiltro("");}} style={{marginTop:8,background:"none",border:"none",color:C.blue,fontSize:12,cursor:"pointer",padding:0}}>
-              ✕ Limpiar filtros · {filtradas.length} resultado{filtradas.length!==1?"s":""}
-            </button>
+          {resultados!==null&&(
+            <div style={{color:C.textSm,fontSize:12}}>{resultados.length} factura{resultados.length!==1?"s":""} encontrada{resultados.length!==1?"s":""}{fechaDesde&&` desde ${fechaDesde}`}{fechaHasta&&` hasta ${fechaHasta}`}</div>
           )}
         </div>
         {filtradas.length===0?(
           <div style={{textAlign:"center",color:C.textSm,padding:60,background:C.card,borderRadius:12,border:`1px solid ${C.border}`}}>
             <div style={{fontSize:40,marginBottom:12}}>🧾</div>
-            <div style={{fontSize:15,color:C.textMd}}>{salesHistory.length===0?"No hay ventas registradas":"Sin resultados para ese filtro"}</div>
+            <div style={{fontSize:15,color:C.textMd}}>{resultados!==null?"Sin resultados para ese filtro":"No hay ventas registradas"}</div>
+            {resultados===null&&<div style={{fontSize:12,color:C.textSm,marginTop:6}}>Usa los filtros y "Buscar" para consultar fechas anteriores</div>}
           </div>
         ):filtradas.map((s,i)=>(
           <div key={s.id||i} style={{background:s.anulada?"#FEF2F2":C.card,border:`1px solid ${s.anulada?"#FECACA":C.border}`,borderRadius:10,padding:16,marginBottom:10,boxShadow:"0 1px 3px rgba(0,0,0,0.05)",opacity:s.anulada?0.7:1}}>
