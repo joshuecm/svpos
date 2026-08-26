@@ -1541,6 +1541,7 @@ export default function POS({ usuario, onLogout }) {
     const [fechaDesde,  setFechaDesde]  = useState("");
     const [fechaHasta,  setFechaHasta]  = useState("");
     const [cajeroFiltro,setCajeroFiltro]= useState("");
+    const [clienteFiltro,setClienteFiltro]= useState("");
     const [resultados,  setResultados]  = useState(null);
     const [buscando,    setBuscando]    = useState(false);
     const esAdmin = puedo("historial_global");
@@ -1557,17 +1558,18 @@ export default function POS({ usuario, onLogout }) {
         if(cajeroFiltro&&esAdmin) query += `&cajero=eq.${encodeURIComponent(cajeroFiltro)}`;
         if(!esAdmin)    query += `&cajero=eq.${encodeURIComponent(usuario?.nombre||"")}`;
         if(busqueda)    query += `&correlativo=ilike.*${encodeURIComponent(busqueda)}*`;
+        if(clienteFiltro) query += `&cliente_id=eq.${clienteFiltro}`;
         const ventas = await sb("ventas","GET",null,query);
         setResultados(ventas||[]);
       } catch(e){ console.error(e); }
       setBuscando(false);
     };
 
-    const limpiar = () => { setBusqueda(""); setFechaDesde(""); setFechaHasta(""); setCajeroFiltro(""); setResultados(null); };
+    const limpiar = () => { setBusqueda(""); setFechaDesde(""); setFechaHasta(""); setCajeroFiltro(""); setClienteFiltro(""); setResultados(null); };
 
     const listaBase = resultados !== null ? resultados : salesHistory.filter(s=> esAdmin || s.cajero===usuario?.nombre);
     const filtradas = listaBase.filter(s=> !busqueda || (s.correlativo||"").toLowerCase().includes(busqueda.toLowerCase()));
-    const hayFiltros = busqueda||fechaDesde||fechaHasta||cajeroFiltro;
+    const hayFiltros = busqueda||fechaDesde||fechaHasta||cajeroFiltro||clienteFiltro;
 
     return(
       <div style={{padding:isMobile?12:24,paddingBottom:isMobile?80:24}}>
@@ -1576,7 +1578,7 @@ export default function POS({ usuario, onLogout }) {
           <button onClick={()=>{loadAll();setResultados(null);}} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
         </div>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:16}}>
-          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":esAdmin?"1fr 1fr 1fr 1fr auto":"1fr 1fr auto",gap:10,marginBottom:8,alignItems:"end"}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":esAdmin?"1fr 1fr 1fr 1fr 1fr auto":"1fr 1fr 1fr auto",gap:10,marginBottom:8,alignItems:"end"}}>
             <div>
               <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>No. Factura</label>
               <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar..." style={IS2} onKeyDown={e=>e.key==="Enter"&&buscarEnBD()}/>
@@ -1598,6 +1600,13 @@ export default function POS({ usuario, onLogout }) {
                 </select>
               </div>
             )}
+            <div>
+              <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>Cliente</label>
+              <select value={clienteFiltro} onChange={e=>setClienteFiltro(e.target.value)} style={{...IS2,cursor:"pointer"}}>
+                <option value="">Todos</option>
+                {customers.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
+            </div>
             <div style={{display:"flex",gap:6,paddingBottom:1}}>
               <button onClick={buscarEnBD} disabled={buscando} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.blue,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",opacity:buscando?0.6:1,whiteSpace:"nowrap"}}>
                 {buscando?"⏳":"🔍 Buscar"}
