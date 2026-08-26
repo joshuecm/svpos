@@ -1538,16 +1538,19 @@ export default function POS({ usuario, onLogout }) {
 
   const HistoryTab = () => {
     const [busqueda,    setBusqueda]    = useState("");
-    const [fechaFiltro, setFechaFiltro] = useState("");
+    const [fechaDesde, setFechaDesde] = useState("");
+    const [fechaHasta, setFechaHasta] = useState("");
     const [cajeroFiltro,setCajeroFiltro]= useState("");
     const esAdmin = puedo("historial_global");
     const cajeros = [...new Set(salesHistory.map(s=>s.cajero).filter(Boolean))];
     const filtradas = salesHistory.filter(s=>{
       const matchCorr   = !busqueda     || (s.correlativo||"").toLowerCase().includes(busqueda.toLowerCase());
-      const matchFecha  = !fechaFiltro  || s.created_at.startsWith(fechaFiltro);
+      const fechaVenta  = new Date(s.created_at);
+      const matchDesde  = !fechaDesde  || fechaVenta >= new Date(fechaDesde);
+      const matchHasta  = !fechaHasta  || fechaVenta <= new Date(fechaHasta+"T23:59:59");
       const matchCajero = !cajeroFiltro || s.cajero===cajeroFiltro;
       const matchPropio = esAdmin || s.cajero===usuario?.nombre;
-      return matchCorr&&matchFecha&&matchCajero&&matchPropio;
+      return matchCorr&&matchDesde&&matchHasta&&matchCajero&&matchPropio;
     });
     const IS2 = {background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"8px 12px",color:"#1E293B",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box"};
     const METODOS = {cash:"Efectivo",card:"Tarjeta",transfer:"Transferencia",credit:"Crédito"};
@@ -1558,14 +1561,18 @@ export default function POS({ usuario, onLogout }) {
           <button onClick={loadAll} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
         </div>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:16}}>
-          <div style={{display:"grid",gridTemplateColumns:esAdmin?"1fr 1fr 1fr":"1fr 1fr",gap:10}}>
+          <div style={{display:"grid",gridTemplateColumns:esAdmin?"1fr 1fr 1fr 1fr":"1fr 1fr 1fr",gap:10}}>
             <div>
               <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>No. Factura</label>
               <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar..." style={IS2}/>
             </div>
             <div>
-              <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>Fecha</label>
-              <input type="date" value={fechaFiltro} onChange={e=>setFechaFiltro(e.target.value)} style={IS2}/>
+              <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>Fecha desde</label>
+              <input type="date" value={fechaDesde} onChange={e=>setFechaDesde(e.target.value)} style={IS2}/>
+            </div>
+            <div>
+              <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>Fecha hasta</label>
+              <input type="date" value={fechaHasta} onChange={e=>setFechaHasta(e.target.value)} style={IS2}/>
             </div>
             {esAdmin&&(
               <div>
@@ -1577,8 +1584,8 @@ export default function POS({ usuario, onLogout }) {
               </div>
             )}
           </div>
-          {(busqueda||fechaFiltro||cajeroFiltro)&&(
-            <button onClick={()=>{setBusqueda("");setFechaFiltro("");setCajeroFiltro("");}} style={{marginTop:8,background:"none",border:"none",color:C.blue,fontSize:12,cursor:"pointer",padding:0}}>
+          {(busqueda||fechaDesde||fechaHasta||cajeroFiltro)&&(
+            <button onClick={()=>{setBusqueda("");setFechaDesde("");setFechaHasta("");setCajeroFiltro("");}} style={{marginTop:8,background:"none",border:"none",color:C.blue,fontSize:12,cursor:"pointer",padding:0}}>
               ✕ Limpiar filtros · {filtradas.length} resultado{filtradas.length!==1?"s":""}
             </button>
           )}
