@@ -1026,6 +1026,22 @@ export default function POS({ usuario, onLogout }) {
   // Recargar detalle de caja cuando cambia la caja o la pestaña activa
 
 
+  const cerrarCajaFinal = async () => {
+    if(!ticketCierre||!cajaActual) return;
+    try {
+      await sb(`cajas?id=eq.${cajaActual.id}`,"PATCH",{
+        estado:             "cerrada",
+        efectivo_declarado: ticketCierre.efectivoDecl,
+        observaciones:      ticketCierre.observaciones||null,
+        cerrada_at:         new Date().toISOString(),
+      });
+      setTicketCierre(prev=>({...prev, _preview:false}));
+      setCajaActual(null);
+      notify("Caja cerrada correctamente");
+      await loadAll();
+    } catch(e){ notify("Error al cerrar caja: "+e.message,"error"); }
+  };
+
   const notify = (msg,type="success") => {
     setNotification({msg,type});
     setTimeout(()=>setNotification(null),3000);
@@ -1929,9 +1945,23 @@ export default function POS({ usuario, onLogout }) {
 
                 <div style={{display:"flex",gap:8}}>
                   <button onClick={()=>{setShowCierre(false);setErrCaja("");}} style={{...BS,flex:1}}>Cancelar</button>
-                  <button onClick={cerrarCaja} disabled={cerrando||efectivoDecl===""}
-                    style={{flex:2,padding:10,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:(cerrando||efectivoDecl==="")?0.5:1}}>
-                    {cerrando?"⏳ Cerrando...":"🔒 Confirmar cierre"}
+                  <button onClick={()=>{
+                    if(efectivoDecl===""){setErrCaja("Ingresa el efectivo declarado");return;}
+                    // Generar previsualización del ticket sin cerrar caja
+                    setTicketCierre({
+                      cajero:cajaActual.cajero, serie:cajaActual.serie,
+                      sucursal:cajaActual.sucursal, abierta_at:cajaActual.abierta_at,
+                      cerrada_at:new Date().toISOString(), fondo,
+                      totalEfectivo, totalTarjeta, totalTransfer, totalCredito,
+                      totalAbonos, totalSalidas, totalVentas, efectivoEsperado,
+                      efectivoDecl:parseFloat(efectivoDecl), diferencia,
+                      observaciones:obsDecl.trim()||null, salidas,
+                      abonos:abonos.map(a=>({...a})),
+                      ventas:modoCierre==="detallado"?ventasTurno.map(v=>({...v,_clienteNombre:customers.find(c=>c.id===v.cliente_id)?.nombre||(v.cliente_id?"Cliente":"Mostrador")})):[],
+                      modo:modoCierre, _preview:true,
+                    });
+                  }} disabled={efectivoDecl===""} style={{flex:2,padding:10,borderRadius:8,border:"none",background:"#3B82F6",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:efectivoDecl===""?0.5:1}}>
+                    👁️ Previsualizar ticket
                   </button>
                 </div>
               </div>
@@ -2262,9 +2292,16 @@ export default function POS({ usuario, onLogout }) {
               </div>
 
               <div style={{textAlign:"center",color:"#94A3B8",fontSize:10,margin:"12px 0"}}>*** Documento interno — no es comprobante fiscal ***</div>
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>window.print()} style={{flex:1,padding:10,borderRadius:8,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:13,cursor:"pointer"}}>🖨️ Imprimir</button>
-                <button onClick={()=>setTicketCierre(null)} style={{flex:1,padding:10,borderRadius:8,border:"none",background:"#3B82F6",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>✓ Cerrar</button>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                <button onClick={()=>window.print()} style={{flex:1,padding:10,borderRadius:8,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:13,cursor:"pointer",minWidth:100}}>🖨️ Imprimir</button>
+                {ticketCierre?._preview?(
+                  <>
+                    <button onClick={()=>setTicketCierre(null)} style={{flex:1,padding:10,borderRadius:8,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:13,cursor:"pointer",minWidth:100}}>← Corregir</button>
+                    <button onClick={cerrarCajaFinal} style={{flex:2,padding:10,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",minWidth:140}}>🔒 Confirmar cierre</button>
+                  </>
+                ):(
+                  <button onClick={()=>setTicketCierre(null)} style={{flex:1,padding:10,borderRadius:8,border:"none",background:"#3B82F6",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",minWidth:100}}>✓ Cerrar</button>
+                )}
               </div>
             </div>
           </div>
