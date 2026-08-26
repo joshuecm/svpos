@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { tienePermiso, ROLES, ROL_COLOR, ROL_BG, ROL_ICON } from "./usuarios.js";
 import UsuariosModal from "./UsuariosModal.jsx";
 import RolesModal from "./RolesModal.jsx";
@@ -942,38 +942,41 @@ export default function POS({ usuario, onLogout }) {
 
   const cargarCajaDetalle = async (caja) => {
     if(!caja) return;
+    cajaDetalleLoaded.current = false;
     try {
       const fechaAbierta = caja.abierta_at.replace(' ', '+');
       const [sal, abon] = await Promise.all([
         sb("salidas_caja","GET",null,`?caja_id=eq.${caja.id}&order=created_at.asc`),
         sb("abonos_credito","GET",null,`?cajero=eq.${encodeURIComponent(caja.cajero)}&created_at=gte.${encodeURIComponent(fechaAbierta)}&order=created_at.asc`),
       ]);
-      console.log("Caja:", caja.cajero, "abierta_at:", caja.abierta_at);
-      console.log("Abonos cargados:", abon?.length, abon);
       setCajaSalidas(sal||[]);
       setCajaAbonos(abon||[]);
+      cajaDetalleLoaded.current = true;
     } catch(e){ console.error("Error cargando detalle caja:", e); }
   };
 
   // Recargar detalle de caja cuando cambia la caja o la pestaña activa
+  const cajaDetalleLoaded = useRef(false);
+
   useEffect(()=>{
-    let cancelled = false;
+    cajaDetalleLoaded.current = false;
+  },[cajaActual?.id]);
+
+  useEffect(()=>{
+    if(!cajaActual||activeTab!=="caja"||cajaDetalleLoaded.current) return;
+    cajaDetalleLoaded.current = true;
     const cargar = async () => {
-      if(!cajaActual) return;
       try {
         const fechaAbierta = cajaActual.abierta_at.replace(' ', '+');
         const [sal, abon] = await Promise.all([
           sb("salidas_caja","GET",null,`?caja_id=eq.${cajaActual.id}&order=created_at.asc`),
           sb("abonos_credito","GET",null,`?cajero=eq.${encodeURIComponent(cajaActual.cajero)}&created_at=gte.${encodeURIComponent(fechaAbierta)}&order=created_at.asc`),
         ]);
-        if(!cancelled){
-          setCajaSalidas(sal||[]);
-          setCajaAbonos(abon||[]);
-        }
+        setCajaSalidas(sal||[]);
+        setCajaAbonos(abon||[]);
       } catch(e){ console.error("Error cargando detalle caja:", e); }
     };
-    if(activeTab==="caja") cargar();
-    return ()=>{ cancelled=true; };
+    cargar();
   },[cajaActual?.id, activeTab]);
 
   const notify = (msg,type="success") => {
