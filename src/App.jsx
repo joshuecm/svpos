@@ -9,6 +9,7 @@ import CreditosModal from "./CreditosModal.jsx";
 import ProveedoresModal from "./ProveedoresModal.jsx";
 import InventarioModal from "./InventarioModal.jsx";
 import CombosModal from "./CombosModal.jsx";
+import CajaModal, { AperturaCaja } from "./CajaModal.jsx";
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
@@ -847,7 +848,9 @@ export default function POS({ usuario, onLogout }) {
   const [showCreditosModal,    setShowCreditosModal]    = useState(false);
   const [showProveedoresModal, setShowProveedoresModal] = useState(false);
   const [showInventarioModal,  setShowInventarioModal]  = useState(false);
-  const [showCombosModal,      setShowCombosModal]      = useState(false);
+  const [showCajaModal,        setShowCajaModal]        = useState(false);
+  const [cajaActual,           setCajaActual]           = useState(null);
+  const [showAperturaCaja,     setShowAperturaCaja]     = useState(false);
   const [combos,               setCombos]               = useState([]);
   const [modoInventarioAdmin,  setModoInventarioAdmin]  = useState(true);
   const [showPrecioModal,   setShowPrecioModal]   = useState(false);
@@ -919,6 +922,14 @@ export default function POS({ usuario, onLogout }) {
       setSalesHistory(ventas||[]);
       setCajaInfo(caja?.[0]||null);
       setBancos(bcos||[]);
+
+      // Cargar caja activa del cajero
+      if(usuario?.nombre) {
+        const cajaAbierta = await sb("cajas","GET",null,
+          `?cajero=eq.${encodeURIComponent(usuario.nombre)}&estado=eq.abierta&order=created_at.desc&limit=1`
+        );
+        setCajaActual(cajaAbierta?.length ? cajaAbierta[0] : null);
+      }
     } catch { notify("Error conectando a la base de datos","error"); }
     setLoading(false);
   }
@@ -1157,9 +1168,10 @@ export default function POS({ usuario, onLogout }) {
             <span style={{fontSize:18}}>🏭</span>Proveedores
           </button>
         )}
-        {puedo("reportes")&&(
-          <button onClick={()=>notify("Módulo Reportes — próximamente","info")} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
-            <span style={{fontSize:18}}>📈</span>Reportes
+        {puedo("abrir_cerrar_caja")&&(
+          <button onClick={()=>{setShowCajaModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:cajaActual?"transparent":C.amberBg,color:cajaActual?C.textSm:C.amber,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:18}}>🏪</span>
+            {cajaActual?"Caja abierta":"Abrir caja"}
           </button>
         )}
         <div style={{borderTop:`1px solid ${C.border}`,margin:"8px 0"}}/>
@@ -1586,6 +1598,19 @@ export default function POS({ usuario, onLogout }) {
       )}
       {showClientesModal&&puedo("catalogo_clientes")&&(
         <ClientesModal isMobile={isMobile} onClose={()=>{setShowClientesModal(false);loadAll();}}/>
+      )}
+      {/* Apertura automática si no hay caja */}
+      {puedo("abrir_cerrar_caja")&&!cajaActual&&!loading&&(
+        <AperturaCaja usuario={usuario} onAbierta={(c)=>setCajaActual(c)}/>
+      )}
+      {showCajaModal&&(
+        <CajaModal
+          isMobile={isMobile} usuario={usuario}
+          cajaActual={cajaActual}
+          puedeDetalle={puedo("ver_reporte_caja_detallado")}
+          onCajaChange={(c)=>setCajaActual(c)}
+          onClose={()=>setShowCajaModal(false)}
+        />
       )}
       {showCombosModal&&puedo("gestion_combos")&&(
         <CombosModal isMobile={isMobile} onClose={()=>{setShowCombosModal(false);loadAll();}}/>
