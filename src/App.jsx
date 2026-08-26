@@ -953,6 +953,8 @@ export default function POS({ usuario, onLogout }) {
 
   // Recargar detalle de caja cuando cambia la caja o la pestaña activa
   useEffect(()=>{ if(cajaActual&&activeTab==="caja") cargarCajaDetalle(cajaActual); },[cajaActual?.id, activeTab]);
+
+  const notify = (msg,type="success") => {
     setNotification({msg,type});
     setTimeout(()=>setNotification(null),3000);
   };
