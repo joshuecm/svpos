@@ -856,6 +856,7 @@ export default function POS({ usuario, onLogout }) {
   const [ticketCierre,         setTicketCierre]         = useState(null);
   const [cajaSalidas,          setCajaSalidas]          = useState([]);
   const [cajaAbonos,           setCajaAbonos]           = useState([]);
+  const [cajaReloadKey,        setCajaReloadKey]        = useState(0);
   const [combos,               setCombos]               = useState([]);
   const [modoInventarioAdmin,  setModoInventarioAdmin]  = useState(true);
   const [showPrecioModal,   setShowPrecioModal]   = useState(false);
@@ -952,7 +953,7 @@ export default function POS({ usuario, onLogout }) {
   };
 
   // Recargar detalle de caja cuando cambia la caja o la pestaña activa
-  useEffect(()=>{ if(cajaActual&&activeTab==="caja") cargarCajaDetalle(cajaActual); },[cajaActual?.id, activeTab]);
+  useEffect(()=>{ if(cajaActual) cargarCajaDetalle(cajaActual); },[cajaActual?.id, activeTab, cajaReloadKey]);
 
   const notify = (msg,type="success") => {
     setNotification({msg,type});
@@ -1568,7 +1569,7 @@ export default function POS({ usuario, onLogout }) {
       <div style={{padding:isMobile?12:24,paddingBottom:isMobile?80:24}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <h2 style={{color:C.text,fontSize:18,fontWeight:700}}>🏪 Caja</h2>
-          <button onClick={()=>{loadAll();if(cajaActual)cargarCajaDetalle(cajaActual);setErrCaja("");}} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
+          <button onClick={()=>{loadAll();setCajaReloadKey(k=>k+1);setErrCaja("");}} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
         </div>
 
         {errCaja&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"8px 14px",color:"#DC2626",fontSize:13,marginBottom:14}}>{errCaja}</div>}
@@ -2096,7 +2097,7 @@ export default function POS({ usuario, onLogout }) {
         <ProveedoresModal isMobile={isMobile} onClose={()=>setShowProveedoresModal(false)}/>
       )}
       {showCreditosModal&&puedo("recibir_abonos")&&(
-        <CreditosModal isMobile={isMobile} usuario={usuario} onClose={()=>{setShowCreditosModal(false);loadAll();}}/>
+        <CreditosModal isMobile={isMobile} usuario={usuario} onClose={()=>{setShowCreditosModal(false);loadAll();setCajaReloadKey(k=>k+1);}}/>
       )}
       {showRolesModal&&puedo("gestion_usuarios")&&(
         <RolesModal
