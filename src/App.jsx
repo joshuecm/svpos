@@ -851,6 +851,7 @@ export default function POS({ usuario, onLogout }) {
   const [showCajaModal,        setShowCajaModal]        = useState(false);
   const [cajaActual,           setCajaActual]           = useState(null);
   const [showAperturaCaja,     setShowAperturaCaja]     = useState(false);
+  const [showCombosModal,      setShowCombosModal]      = useState(false);
   const [combos,               setCombos]               = useState([]);
   const [modoInventarioAdmin,  setModoInventarioAdmin]  = useState(true);
   const [showPrecioModal,   setShowPrecioModal]   = useState(false);
