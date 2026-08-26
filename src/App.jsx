@@ -93,6 +93,7 @@ function calcLine(item, ivaConfig) {
 // ─── SHARED STYLES ────────────────────────────────────────────────────────────
 const IS = {background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"10px 14px",color:"#1E293B",fontSize:14,outline:"none",width:"100%",boxSizing:"border-box"};
 const BP = {background:"#3B82F6",color:"#fff",border:"none",borderRadius:8,padding:"10px 16px",fontSize:14,fontWeight:600,cursor:"pointer"};
+const BG = {background:"#16A34A",color:"#fff",border:"none",borderRadius:8,padding:"10px 16px",fontSize:14,fontWeight:600,cursor:"pointer"};
 const BS = {background:"#fff",color:"#475569",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"10px 16px",fontSize:14,cursor:"pointer"};
 const BD = {background:"#FEF2F2",color:"#DC2626",border:"1.5px solid #FECACA",borderRadius:8,padding:"10px 16px",fontSize:14,cursor:"pointer"};
 const OV = {position:"fixed",inset:0,background:"rgba(15,23,42,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,backdropFilter:"blur(3px)"};
@@ -1169,10 +1170,9 @@ export default function POS({ usuario, onLogout }) {
             <span style={{fontSize:18}}>🏭</span>Proveedores
           </button>
         )}
-        {puedo("abrir_cerrar_caja")&&(
-          <button onClick={()=>{setShowCajaModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:cajaActual?"transparent":C.amberBg,color:cajaActual?C.textSm:C.amber,fontSize:14,cursor:"pointer",textAlign:"left"}}>
-            <span style={{fontSize:18}}>🏪</span>
-            {cajaActual?"Caja abierta":"Abrir caja"}
+        {puedo("reportes")&&(
+          <button onClick={()=>notify("Módulo Reportes — próximamente","info")} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:18}}>📈</span>Reportes
           </button>
         )}
         <div style={{borderTop:`1px solid ${C.border}`,margin:"8px 0"}}/>
@@ -1426,70 +1426,334 @@ export default function POS({ usuario, onLogout }) {
   );
 
   const CajaTab = () => {
-    const totalEfectivo = salesHistory.filter(v=>v.metodo_pago==="cash"||v.metodo_pago?.includes("cash")).reduce((s,v)=>s+parseFloat(v.total||0),0);
-    const totalTransfer = salesHistory.filter(v=>v.metodo_pago==="transfer"||v.metodo_pago?.includes("transfer")).reduce((s,v)=>s+parseFloat(v.total||0),0);
-    const totalTarjeta  = salesHistory.filter(v=>v.metodo_pago==="card"||v.metodo_pago?.includes("card")).reduce((s,v)=>s+parseFloat(v.total||0),0);
-    const totalCredito  = salesHistory.filter(v=>v.metodo_pago==="credit"||v.metodo_pago?.includes("credit")).reduce((s,v)=>s+parseFloat(v.total||0),0);
-    const fondo = parseFloat(cajaInfo?.fondo||500);
-    const totalVentas = totalEfectivo+totalTransfer+totalTarjeta+totalCredito;
+    const IS = {background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"10px 14px",color:"#1E293B",fontSize:14,outline:"none",width:"100%",boxSizing:"border-box"};
+    const [fondoInput,    setFondoInput]    = useState("");
+    const [abriendo,      setAbriendo]      = useState(false);
+    const [salidaMonto,   setSalidaMonto]   = useState("");
+    const [salidaMotivo,  setSalidaMotivo]  = useState("");
+    const [guardandoSal,  setGuardandoSal]  = useState(false);
+    const [showSalida,    setShowSalida]    = useState(false);
+    const [showCierre,    setShowCierre]    = useState(false);
+    const [modoCierre,    setModoCierre]    = useState("resumido");
+    const [efectivoDecl,  setEfectivoDecl]  = useState("");
+    const [obsDecl,       setObsDecl]       = useState("");
+    const [cerrando,      setCerrando]      = useState(false);
+    const [salidas,       setSalidas]       = useState([]);
+    const [abonos,        setAbonos]        = useState([]);
+    const [loadingCaja,   setLoadingCaja]   = useState(false);
+    const [errCaja,       setErrCaja]       = useState("");
+
+    useEffect(()=>{ if(cajaActual) cargarDetalle(); },[cajaActual?.id]);
+
+    const cargarDetalle = async () => {
+      setLoadingCaja(true);
+      try {
+        const [sal, abon] = await Promise.all([
+          sb("salidas_caja","GET",null,`?caja_id=eq.${cajaActual.id}&order=created_at.asc`),
+          sb("abonos_credito","GET",null,`?cajero=eq.${encodeURIComponent(cajaActual.cajero)}&created_at=gte.${cajaActual.abierta_at}&order=created_at.asc`),
+        ]);
+        setSalidas(sal||[]);
+        setAbonos(abon||[]);
+      } catch {}
+      setLoadingCaja(false);
+    };
+
+    const abrirCaja = async () => {
+      if(!fondoInput||parseFloat(fondoInput)<0){ setErrCaja("Ingresa el fondo inicial"); return; }
+      setAbriendo(true); setErrCaja("");
+      try {
+        const [caja] = await sb("cajas","POST",{
+          serie:         usuario.serie_correlativo||"A",
+          cajero:        usuario.nombre||"Admin",
+          sucursal:      usuario.sucursal||"Principal",
+          fondo_inicial: parseFloat(fondoInput),
+          estado:        "abierta",
+        });
+        setCajaActual(caja);
+        setFondoInput("");
+      } catch(e){ setErrCaja("Error: "+e.message); }
+      setAbriendo(false);
+    };
+
+    const registrarSalida = async () => {
+      if(!salidaMonto||parseFloat(salidaMonto)<=0){ setErrCaja("Ingresa el monto"); return; }
+      if(!salidaMotivo.trim()){ setErrCaja("El motivo es obligatorio"); return; }
+      setGuardandoSal(true); setErrCaja("");
+      try {
+        await sb("salidas_caja","POST",{
+          caja_id: cajaActual.id,
+          serie:   cajaActual.serie,
+          cajero:  usuario.nombre||"Admin",
+          monto:   parseFloat(salidaMonto),
+          motivo:  salidaMotivo.trim(),
+        });
+        setSalidaMonto(""); setSalidaMotivo("");
+        setShowSalida(false);
+        await cargarDetalle();
+      } catch(e){ setErrCaja("Error: "+e.message); }
+      setGuardandoSal(false);
+    };
+
+    const cerrarCaja = async () => {
+      if(efectivoDecl===""){ setErrCaja("Ingresa el efectivo declarado"); return; }
+      setCerrando(true); setErrCaja("");
+      try {
+        await sb(`cajas?id=eq.${cajaActual.id}`,"PATCH",{
+          estado:             "cerrada",
+          efectivo_declarado: parseFloat(efectivoDecl),
+          observaciones:      obsDecl.trim()||null,
+          cerrada_at:         new Date().toISOString(),
+        });
+        setCajaActual(null);
+        setShowCierre(false);
+        notify("Caja cerrada correctamente");
+        await loadAll();
+      } catch(e){ setErrCaja("Error: "+e.message); }
+      setCerrando(false);
+    };
+
+    // Calcular totales solo del turno actual
+    const ventasTurno = cajaActual
+      ? salesHistory.filter(v=> new Date(v.created_at) >= new Date(cajaActual.abierta_at) && v.cajero===cajaActual.cajero)
+      : salesHistory;
+
+    const totalEfectivo = ventasTurno.filter(v=>(v.metodo_pago||"").includes("cash")).reduce((s,v)=>s+parseFloat(v.total||0),0);
+    const totalTransfer = ventasTurno.filter(v=>(v.metodo_pago||"").includes("transfer")).reduce((s,v)=>s+parseFloat(v.total||0),0);
+    const totalTarjeta  = ventasTurno.filter(v=>(v.metodo_pago||"").includes("card")).reduce((s,v)=>s+parseFloat(v.total||0),0);
+    const totalCredito  = ventasTurno.filter(v=>(v.metodo_pago||"").includes("credit")).reduce((s,v)=>s+parseFloat(v.total||0),0);
+    const totalAbonos   = abonos.filter(a=>a.metodo_pago==="cash").reduce((s,a)=>s+parseFloat(a.monto||0),0);
+    const totalSalidas  = salidas.reduce((s,e)=>s+parseFloat(e.monto||0),0);
+    const fondo         = parseFloat(cajaActual?.fondo_inicial||0);
+    const totalVentas   = totalEfectivo+totalTransfer+totalTarjeta+totalCredito;
+    const efectivoEsperado = fondo+totalEfectivo+totalAbonos-totalSalidas;
+    const diferencia    = parseFloat(efectivoDecl||0)-efectivoEsperado;
+
     return(
       <div style={{padding:isMobile?12:24,paddingBottom:isMobile?80:24}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-          <h2 style={{color:C.text,fontSize:18,fontWeight:700}}>Corte de Caja</h2>
-          <button onClick={loadAll} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
+          <h2 style={{color:C.text,fontSize:18,fontWeight:700}}>🏪 Caja</h2>
+          <button onClick={()=>{loadAll();if(cajaActual)cargarDetalle();}} style={{...btnSecondary,fontSize:12,padding:"6px 12px"}}>🔄</button>
         </div>
-        {/* Resumen general */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-          {[
-            {label:"Fondo inicial",   value:fmt(fondo),       color:C.textMd},
-            {label:"Total ventas",    value:fmt(totalVentas), color:C.blue},
-            {label:"Total esperado",  value:fmt(fondo+totalEfectivo), color:C.green},
-            {label:"Estado",          value:cajaInfo?.estado==="abierta"?"Abierta":"Cerrada", color:cajaInfo?.estado==="abierta"?C.green:C.red},
-          ].map(item=>(
-            <div key={item.label} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:16}}>
-              <div style={{color:C.textSm,fontSize:12,marginBottom:4}}>{item.label}</div>
-              <div style={{color:item.color,fontSize:20,fontWeight:700}}>{item.value}</div>
+
+        {errCaja&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"8px 14px",color:"#DC2626",fontSize:13,marginBottom:14}}>{errCaja}</div>}
+
+        {/* ── SIN CAJA ABIERTA ── */}
+        {!cajaActual&&(
+          <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:24,textAlign:"center"}}>
+            <div style={{fontSize:48,marginBottom:12}}>🏪</div>
+            <div style={{color:C.text,fontSize:16,fontWeight:600,marginBottom:4}}>Caja cerrada</div>
+            <div style={{color:C.textMd,fontSize:13,marginBottom:20}}>Ingresa el fondo inicial para abrir la caja</div>
+            <div style={{marginBottom:16,textAlign:"left"}}>
+              <label style={{color:C.textMd,fontSize:13,display:"block",marginBottom:6}}>Fondo inicial</label>
+              <input type="number" value={fondoInput} onChange={e=>setFondoInput(e.target.value)}
+                placeholder="0.00" min="0" step="0.01"
+                style={{...IS,fontSize:24,fontWeight:800,textAlign:"right",color:C.green}}/>
             </div>
-          ))}
-        </div>
-        {/* Desglose por método */}
-        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:16,marginBottom:16}}>
-          <div style={{color:C.textMd,fontSize:13,fontWeight:600,marginBottom:12}}>Desglose por método de pago</div>
-          {[
-            {label:"💵 Efectivo",      value:totalEfectivo, note:"En caja física"},
-            {label:"🏦 Transferencia", value:totalTransfer, note:"En cuenta bancaria"},
-            {label:"💳 Tarjeta",       value:totalTarjeta,  note:"En terminal"},
-            {label:"📋 Crédito",       value:totalCredito,  note:"Por cobrar"},
-          ].map(item=>(
-            <div key={item.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
-              <div>
-                <span style={{color:C.text,fontSize:13}}>{item.label}</span>
-                <span style={{color:C.textSm,fontSize:11,marginLeft:8}}>{item.note}</span>
+            <button onClick={abrirCaja} disabled={abriendo} style={{...BG,width:"100%",padding:14,fontSize:16,fontWeight:700,borderRadius:10,background:"#16A34A",opacity:abriendo?0.6:1}}>
+              {abriendo?"⏳ Abriendo...":"✓ Abrir caja"}
+            </button>
+          </div>
+        )}
+
+        {/* ── CAJA ABIERTA ── */}
+        {cajaActual&&(
+          <>
+            {/* Info apertura */}
+            <div style={{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:10,padding:14,marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <span style={{color:C.green,fontWeight:700,fontSize:15}}>✓ Caja abierta</span>
+                <span style={{color:C.green,fontSize:12}}>{new Date(cajaActual.abierta_at).toLocaleString("es-GT")}</span>
               </div>
-              <span style={{color:item.value>0?C.text:C.textSm,fontWeight:item.value>0?700:400,fontSize:14}}>{fmt(item.value)}</span>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {[
+                  {label:"Cajero",  value:cajaActual.cajero},
+                  {label:"Serie",   value:cajaActual.serie},
+                  {label:"Fondo",   value:fmt(cajaActual.fondo_inicial)},
+                  {label:"Sucursal",value:cajaActual.sucursal},
+                ].map(s=>(
+                  <div key={s.label}>
+                    <div style={{color:C.textSm,fontSize:11}}>{s.label}</div>
+                    <div style={{color:C.text,fontWeight:600,fontSize:13}}>{s.value}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:10,marginTop:4}}>
-            <span style={{color:C.text,fontSize:14,fontWeight:700}}>Total ventas</span>
-            <span style={{color:C.blue,fontSize:16,fontWeight:800}}>{fmt(totalVentas)}</span>
-          </div>
-        </div>
-        {/* Efectivo esperado en caja */}
-        <div style={{background:C.greenBg,border:"1px solid #BBF7D0",borderRadius:10,padding:16}}>
-          <div style={{color:C.green,fontSize:13,fontWeight:600,marginBottom:8}}>💵 Efectivo esperado en caja</div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-            <span style={{color:C.textMd,fontSize:13}}>Fondo inicial</span>
-            <span style={{color:C.text,fontSize:13}}>{fmt(fondo)}</span>
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-            <span style={{color:C.textMd,fontSize:13}}>Ventas en efectivo</span>
-            <span style={{color:C.text,fontSize:13}}>{fmt(totalEfectivo)}</span>
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:"1px solid #BBF7D0",marginTop:4}}>
-            <span style={{color:C.green,fontSize:15,fontWeight:700}}>Total en caja</span>
-            <span style={{color:C.green,fontSize:18,fontWeight:800}}>{fmt(fondo+totalEfectivo)}</span>
-          </div>
-        </div>
+
+            {/* Ventas del turno */}
+            <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:16,marginBottom:12}}>
+              <div style={{color:C.textMd,fontSize:13,fontWeight:600,marginBottom:12}}>💰 Ventas del turno</div>
+              {[
+                {label:"💵 Efectivo",       value:totalEfectivo, note:"En caja física"},
+                {label:"🏦 Transferencia",  value:totalTransfer, note:"En cuenta bancaria"},
+                {label:"💳 Tarjeta",        value:totalTarjeta,  note:"En terminal"},
+                {label:"📋 Crédito",        value:totalCredito,  note:"Por cobrar"},
+                {label:"🔄 Créditos cobrados",value:totalAbonos, note:"Efectivo recibido"},
+              ].map(item=>(
+                <div key={item.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
+                  <div>
+                    <span style={{color:C.text,fontSize:13}}>{item.label}</span>
+                    <span style={{color:C.textSm,fontSize:11,marginLeft:8}}>{item.note}</span>
+                  </div>
+                  <span style={{color:item.value>0?C.text:C.textSm,fontWeight:item.value>0?700:400,fontSize:14}}>{fmt(item.value)}</span>
+                </div>
+              ))}
+              <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,marginTop:4}}>
+                <span style={{color:C.text,fontSize:14,fontWeight:700}}>Total ventas</span>
+                <span style={{color:C.blue,fontSize:16,fontWeight:800}}>{fmt(totalVentas)}</span>
+              </div>
+            </div>
+
+            {/* Salidas */}
+            {salidas.length>0&&(
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:16,marginBottom:12}}>
+                <div style={{color:C.textMd,fontSize:13,fontWeight:600,marginBottom:8}}>💸 Salidas de efectivo</div>
+                {salidas.map(s=>(
+                  <div key={s.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <div>
+                      <div style={{color:C.text,fontSize:13}}>{s.motivo}</div>
+                      <div style={{color:C.textSm,fontSize:11}}>{new Date(s.created_at).toLocaleString("es-GT")}</div>
+                    </div>
+                    <span style={{color:C.red,fontWeight:700}}>-{fmt(s.monto)}</span>
+                  </div>
+                ))}
+                <div style={{display:"flex",justifyContent:"space-between",paddingTop:8}}>
+                  <span style={{color:C.textMd,fontSize:13}}>Total salidas</span>
+                  <span style={{color:C.red,fontWeight:700}}>-{fmt(totalSalidas)}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Efectivo esperado */}
+            <div style={{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:10,padding:16,marginBottom:16}}>
+              <div style={{color:C.green,fontSize:13,fontWeight:600,marginBottom:8}}>💵 Efectivo esperado en caja</div>
+              {[
+                {label:"Fondo inicial",       value:fmt(fondo)},
+                {label:"+ Ventas efectivo",   value:fmt(totalEfectivo)},
+                {label:"+ Créditos cobrados", value:fmt(totalAbonos)},
+                {label:"− Salidas",           value:`-${fmt(totalSalidas)}`},
+              ].map(s=>(
+                <div key={s.label} style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                  <span style={{color:C.textMd,fontSize:13}}>{s.label}</span>
+                  <span style={{color:C.text,fontSize:13}}>{s.value}</span>
+                </div>
+              ))}
+              <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:"1px solid #BBF7D0",marginTop:4}}>
+                <span style={{color:C.green,fontSize:15,fontWeight:700}}>Total en caja</span>
+                <span style={{color:C.green,fontSize:18,fontWeight:800}}>{fmt(efectivoEsperado)}</span>
+              </div>
+            </div>
+
+            {/* Acciones */}
+            {!showSalida&&!showCierre&&(
+              <div style={{display:"flex",gap:10}}>
+                <button onClick={()=>{setShowSalida(true);setShowCierre(false);setErrCaja("");}} style={{...BS,flex:1,padding:12}}>
+                  💸 Salida de efectivo
+                </button>
+                <button onClick={()=>{setShowCierre(true);setShowSalida(false);setErrCaja("");}} style={{flex:2,padding:12,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer"}}>
+                  🔒 Cerrar caja
+                </button>
+              </div>
+            )}
+
+            {/* Form salida */}
+            {showSalida&&(
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:16,marginBottom:12}}>
+                <div style={{color:C.textMd,fontSize:13,fontWeight:600,marginBottom:12}}>💸 Registrar salida de efectivo</div>
+                <div style={{marginBottom:10}}>
+                  <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Monto *</label>
+                  <input type="number" value={salidaMonto} onChange={e=>setSalidaMonto(e.target.value)}
+                    placeholder="0.00" min="0.01" step="0.01"
+                    style={{...IS,fontSize:20,fontWeight:700,textAlign:"right",color:"#DC2626"}}/>
+                </div>
+                <div style={{marginBottom:14}}>
+                  <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Motivo *</label>
+                  <input value={salidaMotivo} onChange={e=>setSalidaMotivo(e.target.value)}
+                    placeholder="Ej: Pago proveedor, depósito bancario..." style={IS}/>
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={()=>{setShowSalida(false);setErrCaja("");}} style={{...BS,flex:1}}>Cancelar</button>
+                  <button onClick={registrarSalida} disabled={guardandoSal} style={{flex:2,padding:10,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:guardandoSal?0.6:1}}>
+                    {guardandoSal?"⏳ Guardando...":"✓ Registrar salida"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Form cierre */}
+            {showCierre&&(
+              <div style={{background:C.card,border:"1.5px solid #FECACA",borderRadius:10,padding:16}}>
+                <div style={{color:"#DC2626",fontSize:13,fontWeight:600,marginBottom:12}}>🔒 Cierre de caja</div>
+
+                {/* Selector modo — solo si tiene permiso de detallado */}
+                {puedo("ver_reporte_caja_detallado")&&(
+                  <div style={{display:"flex",background:C.panel,borderRadius:8,padding:4,marginBottom:14,border:`1px solid ${C.border}`}}>
+                    {[{id:"resumido",label:"📊 Resumido"},{id:"detallado",label:"📋 Detallado"}].map(t=>(
+                      <button key={t.id} onClick={()=>setModoCierre(t.id)} style={{
+                        flex:1,padding:"7px 0",borderRadius:6,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,
+                        background:modoCierre===t.id?C.card:"transparent",
+                        color:modoCierre===t.id?C.blue:C.textSm,
+                      }}>{t.label}</button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Modo detallado — lista facturas */}
+                {modoCierre==="detallado"&&(
+                  <div style={{marginBottom:14,maxHeight:200,overflowY:"auto",border:`1px solid ${C.border}`,borderRadius:8}}>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr",gap:6,padding:"6px 12px",background:C.panel,position:"sticky",top:0}}>
+                      {["Correlativo","Cliente","Total"].map(h=>(
+                        <span key={h} style={{color:C.textSm,fontSize:11,fontWeight:600}}>{h}</span>
+                      ))}
+                    </div>
+                    {ventasTurno.map((v,i)=>(
+                      <div key={v.id} style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr",gap:6,padding:"6px 12px",borderTop:`1px solid ${C.border}`,background:i%2===0?"#fff":C.panel}}>
+                        <span style={{color:C.blue,fontSize:12,fontWeight:600}}>{v.correlativo}</span>
+                        <span style={{color:C.textMd,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.cliente_id?"Cliente":"Mostrador"}</span>
+                        <span style={{color:C.text,fontSize:12,fontWeight:600,textAlign:"right"}}>{fmt(v.total)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Efectivo declarado */}
+                <div style={{marginBottom:12}}>
+                  <label style={{color:C.textMd,fontSize:13,display:"block",marginBottom:6}}>Efectivo declarado (conteo físico) *</label>
+                  <input type="number" value={efectivoDecl} onChange={e=>setEfectivoDecl(e.target.value)}
+                    placeholder="0.00" min="0" step="0.01"
+                    style={{...IS,fontSize:22,fontWeight:800,textAlign:"right",color:C.green}}/>
+                  {efectivoDecl!==""&&(
+                    <div style={{
+                      marginTop:8,padding:"8px 14px",borderRadius:8,
+                      background:diferencia===0?"#F0FDF4":diferencia>0?"#EFF6FF":"#FEF2F2",
+                      display:"flex",justifyContent:"space-between"
+                    }}>
+                      <span style={{color:diferencia===0?C.green:diferencia>0?C.blue:"#DC2626",fontWeight:600,fontSize:14}}>
+                        {diferencia===0?"✓ Cuadra exacto":diferencia>0?"⬆ Sobrante":"⬇ Faltante"}
+                      </span>
+                      <span style={{color:diferencia===0?C.green:diferencia>0?C.blue:"#DC2626",fontWeight:700,fontSize:15}}>
+                        {diferencia===0?"":fmt(Math.abs(diferencia))}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{marginBottom:14}}>
+                  <label style={{color:C.textMd,fontSize:13,display:"block",marginBottom:6}}>Observaciones</label>
+                  <input value={obsDecl} onChange={e=>setObsDecl(e.target.value)}
+                    placeholder="Notas del cierre..." style={IS}/>
+                </div>
+
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={()=>{setShowCierre(false);setErrCaja("");}} style={{...BS,flex:1}}>Cancelar</button>
+                  <button onClick={cerrarCaja} disabled={cerrando||efectivoDecl===""}
+                    style={{flex:2,padding:10,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:(cerrando||efectivoDecl==="")?0.5:1}}>
+                    {cerrando?"⏳ Cerrando...":"🔒 Confirmar cierre"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
     );
   };
@@ -1599,19 +1863,6 @@ export default function POS({ usuario, onLogout }) {
       )}
       {showClientesModal&&puedo("catalogo_clientes")&&(
         <ClientesModal isMobile={isMobile} onClose={()=>{setShowClientesModal(false);loadAll();}}/>
-      )}
-      {/* Apertura automática si no hay caja */}
-      {puedo("abrir_cerrar_caja")&&!cajaActual&&!loading&&(
-        <AperturaCaja usuario={usuario} onAbierta={(c)=>setCajaActual(c)}/>
-      )}
-      {showCajaModal&&(
-        <CajaModal
-          isMobile={isMobile} usuario={usuario}
-          cajaActual={cajaActual}
-          puedeDetalle={puedo("ver_reporte_caja_detallado")}
-          onCajaChange={(c)=>setCajaActual(c)}
-          onClose={()=>setShowCajaModal(false)}
-        />
       )}
       {showCombosModal&&puedo("gestion_combos")&&(
         <CombosModal isMobile={isMobile} onClose={()=>{setShowCombosModal(false);loadAll();}}/>
