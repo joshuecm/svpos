@@ -2574,3 +2574,4 @@ export default function POS({ usuario, onLogout }) {
     </div>
   );
 }
+
