@@ -937,6 +937,7 @@ export default function POS({ usuario, onLogout }) {
   const [ticketCierre,         setTicketCierre]         = useState(null);
   const [ventaAnular,          setVentaAnular]          = useState(null);
   const [ventaReimprimir,      setVentaReimprimir]      = useState(null);
+  const [opOpen,               setOpOpen]               = useState(false);
 
   const [combos,               setCombos]               = useState([]);
   const [modoInventarioAdmin,  setModoInventarioAdmin]  = useState(true);
@@ -1237,7 +1238,6 @@ export default function POS({ usuario, onLogout }) {
   const ivaBadgeBg    = ivaConfig.modo==="incluido_simple"?C.greenBg:ivaConfig.modo==="incluido_desglosado"?C.blueBg:C.amberBg;
 
   const SidebarContent = () => {
-    const [opOpen, setOpOpen] = useState(false);
     return (
     <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
       <div style={{padding:"20px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -1643,7 +1643,7 @@ export default function POS({ usuario, onLogout }) {
                   <div style={{display:"flex",gap:6,marginTop:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
                     <button onClick={()=>setVentaReimprimir(s)} style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:11,cursor:"pointer"}}>🖨️ Reimprimir</button>
                     {(puedo("anular_propio")||puedo("anular_otros"))&&(
-                      <button onClick={()=>setVentaAnular(s)} style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #FECACA",background:"#FEF2F2",color:"#DC2626",fontSize:11,cursor:"pointer"}}>🚫 Anular</button>
+                      <button onClick={()=>setVentaAnular(s)} style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #FECACA",background:"#FEF2F2",color:"#DC2626",fontSize:11,cursor:"pointer"}}>↩️ Devolución</button>
                     )}
                   </div>
                 )}
@@ -2400,10 +2400,10 @@ export default function POS({ usuario, onLogout }) {
       )}
       {ventaAnular&&(
         <AnulacionModal
-          venta={ventaAnular} usuario={usuario} isMobile={isMobile}
+          venta={ventaAnular} usuario={usuario} cajaActual={cajaActual} isMobile={isMobile}
           onClose={()=>setVentaAnular(null)}
           onAnulada={(autorizador)=>{
-            notify(`Factura ${ventaAnular.correlativo} anulada — autorizada por ${autorizador}`);
+            notify(`Devolución de ${ventaAnular.correlativo} procesada — autorizada por ${autorizador}`);
             setVentaAnular(null);
             loadAll();
           }}
