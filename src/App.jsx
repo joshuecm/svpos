@@ -949,6 +949,7 @@ export default function POS({ usuario, onLogout }) {
   const [salesHistory,      setSalesHistory]      = useState([]);
   const [cajaInfo,          setCajaInfo]          = useState(null);
   const [holdSales,         setHoldSales]         = useState([]);
+  const [showHoldPanel,     setShowHoldPanel]     = useState(false);
   const [time,              setTime]              = useState(nowT());
   const [notification,      setNotification]      = useState(null);
   const [loading,           setLoading]           = useState(true);
@@ -1356,7 +1357,44 @@ export default function POS({ usuario, onLogout }) {
         </div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
-        {holdSales.length>0&&<button onClick={()=>recoverHold(holdSales[0])} style={{...btnSecondary,padding:"6px 10px",fontSize:12}}>⏸ {holdSales.length}</button>}
+        {holdSales.length>0&&(
+          <div style={{position:"relative"}}>
+            <button onClick={()=>setShowHoldPanel(p=>!p)}
+              style={{...btnSecondary,padding:"6px 10px",fontSize:12,background:showHoldPanel?C.blueBg:"#fff",color:showHoldPanel?C.blue:"#475569",border:`1.5px solid ${showHoldPanel?C.blue:"#E2E8F0"}`}}>
+              ⏸ {holdSales.length} en espera
+            </button>
+            {showHoldPanel&&(
+              <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,background:"#fff",border:`1px solid ${C.border}`,borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",zIndex:200,minWidth:260}}>
+                <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,color:C.textMd,fontSize:12,fontWeight:600}}>
+                  Facturas en espera
+                </div>
+                {holdSales.map(h=>(
+                  <div key={h.id} style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                    <div>
+                      <div style={{color:C.text,fontSize:13,fontWeight:600}}>
+                        {h.customer?.nombre||"Mostrador"}
+                      </div>
+                      <div style={{color:C.textSm,fontSize:11}}>
+                        {h.cart.length} producto{h.cart.length!==1?"s":""} · {fmt(h.cart.reduce((s,i)=>s+(i.precio*i.qty),0))}
+                      </div>
+                      <div style={{color:C.textSm,fontSize:10}}>{h.time}</div>
+                    </div>
+                    <div style={{display:"flex",gap:6}}>
+                      <button onClick={()=>{recoverHold(h);setShowHoldPanel(false);}}
+                        style={{padding:"4px 10px",borderRadius:6,border:"none",background:C.blue,color:"#fff",fontSize:12,cursor:"pointer",fontWeight:600}}>
+                        ▶ Recuperar
+                      </button>
+                      <button onClick={()=>setHoldSales(prev=>prev.filter(s=>s.id!==h.id))}
+                        style={{padding:"4px 8px",borderRadius:6,border:"1px solid #FECACA",background:"#FEF2F2",color:"#DC2626",fontSize:12,cursor:"pointer"}}>
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {activeTab==="pos"&&(
           <button onClick={()=>setShowCart(true)} style={{background:C.blue,color:"#fff",border:"none",borderRadius:10,padding:"8px 14px",cursor:"pointer",fontSize:14,fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
             🛒
