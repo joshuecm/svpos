@@ -57,11 +57,15 @@ function TecladoPIN({ pin, onDigito, onBorrar }) {
 // ─── Validar PIN y permisos ───────────────────────────────────────────────────
 async function validarPIN(pin, permisosRequeridos) {
   const usuarios = await sb("usuarios","GET",null,`?pin=eq.${pin}&activo=eq.true`);
+  console.log("Usuarios con PIN:", usuarios?.length, usuarios);
   if(!usuarios?.length) return {ok:false, error:"PIN incorrecto"};
+  if(usuarios.length>1) return {ok:false, error:"PIN duplicado — asigna PINs únicos a cada usuario"};
   const autorizador = usuarios[0];
+  console.log("Autorizador:", autorizador.nombre, "rol_id:", autorizador.rol_id);
   const permisos = await sb("rol_permisos","GET",null,
     `?rol_id=eq.${autorizador.rol_id}&permiso=in.(${permisosRequeridos.join(",")})&valor=eq.true`
   );
+  console.log("Permisos:", permisos);
   const tienePermiso = permisosRequeridos.some(p=> permisos?.some(rp=>rp.permiso===p));
   if(!tienePermiso) return {ok:false, error:`${autorizador.nombre} no tiene permiso para esta operación`};
   return {ok:true, autorizador};
