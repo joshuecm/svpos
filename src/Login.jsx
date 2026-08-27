@@ -84,15 +84,9 @@ export default function Login({ onLogin }) {
     setLoading(false);
   };
 
-  const addPin = (d) => {
-    if (pin.length >= 4) return;
-    const newPin = pin + d;
-    setPin(newPin);
-    setError("");
-    if (newPin.length === 4) loginPin(newPin);
-  };
 
-  const delPin = () => setPin(p => p.slice(0,-1));
+
+
 
   // Obtener color/bg del rol — soporta roles dinámicos y estáticos
   const getRolColor = (u) => ROL_COLOR[u.rol] || "#3B82F6";
@@ -201,38 +195,27 @@ export default function Login({ onLogin }) {
                     </div>
                   </button>
 
-                  {/* Puntos PIN */}
+                  {/* Campo clave alfanumérica */}
                   <div style={{textAlign:"center",marginBottom:20}}>
-                    <div style={{color:C.textMd,fontSize:13,fontWeight:600,marginBottom:14}}>Ingresa tu PIN</div>
-                    <div style={{display:"flex",justifyContent:"center",gap:14}}>
-                      {[0,1,2,3].map(i=>(
-                        <div key={i} style={{width:18,height:18,borderRadius:"50%",background:i<pin.length?C.blue:C.border,transition:"all 0.15s",transform:i<pin.length?"scale(1.2)":"scale(1)"}}/>
-                      ))}
-                    </div>
+                    <div style={{color:C.textMd,fontSize:13,fontWeight:600,marginBottom:14}}>Ingresa tu clave</div>
                   </div>
 
                   {error&&<div style={{background:C.redBg,border:`1px solid ${C.redBorder}`,borderRadius:8,padding:"8px 14px",color:C.red,fontSize:13,marginBottom:14,textAlign:"center"}}>{error}</div>}
 
-                  {/* Teclado */}
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-                    {[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map((d,i)=>(
-                      <button key={i} onClick={()=>d==="⌫"?delPin():d!==""&&addPin(String(d))}
-                        disabled={loading||d===""}
-                        style={{
-                          padding:"17px 0",borderRadius:12,
-                          border:`1.5px solid ${d==="⌫"?C.redBorder:C.border}`,
-                          background:d==="⌫"?C.redBg:d===""?"transparent":C.card,
-                          color:d==="⌫"?C.red:C.text,
-                          fontSize:d==="⌫"?22:24,fontWeight:600,
-                          cursor:d===""?"default":"pointer",
-                          boxShadow:d!==""?"0 1px 3px rgba(0,0,0,0.06)":"none",
-                          opacity:loading?0.6:1,
-                          transition:"all 0.1s",
-                        }}>
-                        {loading&&d===0?"⏳":d}
-                      </button>
-                    ))}
-                  </div>
+                  <input
+                    type="password"
+                    value={pin}
+                    onChange={e=>{ setPin(e.target.value); setError(""); }}
+                    onKeyDown={e=>e.key==="Enter"&&pin.length>=4&&loginPin(pin)}
+                    placeholder="Clave de acceso..."
+                    autoFocus
+                    disabled={loading}
+                    style={{width:"100%",padding:"14px 16px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:16,textAlign:"center",letterSpacing:4,outline:"none",boxSizing:"border-box",marginBottom:12,opacity:loading?0.6:1}}
+                  />
+                  <button onClick={()=>loginPin(pin)} disabled={loading||pin.length<4}
+                    style={{width:"100%",padding:"14px 0",borderRadius:10,border:"none",background:C.blue,color:"#fff",fontSize:16,fontWeight:700,cursor:"pointer",opacity:(loading||pin.length<4)?0.5:1}}>
+                    {loading?"⏳ Verificando...":"→ Ingresar"}
+                  </button>
                 </div>
               )}
             </div>
