@@ -41,11 +41,10 @@ export default function AnulacionModal({ venta, usuario, cajaActual, onClose, on
     new Date(venta.created_at) >= new Date(cajaActual.abierta_at.replace(' ','+')) &&
     venta.cajero === cajaActual.cajero;
 
-  const agregarDigito = (d) => { if(pin.length<4) setPin(p=>p+d); };
-  const borrar = () => setPin(p=>p.slice(0,-1));
+
 
   const confirmar = async () => {
-    if(pin.length!==4){ setError("El PIN debe ser de 4 dígitos"); return; }
+    if(pin.length<4){ setError("La clave debe tener al menos 4 caracteres"); return; }
     setSaving(true); setError("");
     try {
       // 1. Validar PIN — buscar usuario único con ese PIN
@@ -186,30 +185,22 @@ export default function AnulacionModal({ venta, usuario, cajaActual, onClose, on
                   Ingresa PIN de autorización
                 </div>
                 {/* Display PIN */}
-                <div style={{display:"flex",justifyContent:"center",gap:12,marginBottom:16}}>
-                  {[0,1,2,3].map(i=>(
-                    <div key={i} style={{width:48,height:48,borderRadius:10,border:`2px solid ${pin.length>i?"#DC2626":"#E2E8F0"}`,background:pin.length>i?"#FEF2F2":"#F8F9FB",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,color:"#DC2626"}}>
-                      {pin.length>i?"●":""}
-                    </div>
-                  ))}
-                </div>
-                {/* Teclado */}
-                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,maxWidth:240,margin:"0 auto"}}>
-                  {[1,2,3,4,5,6,7,8,9,"",0,"←"].map((d,i)=>(
-                    <button key={i} onClick={()=>d==="←"?borrar():d!==""&&agregarDigito(String(d))}
-                      disabled={d===""}
-                      style={{height:56,borderRadius:10,border:"1.5px solid #E2E8F0",background:d==="←"?"#FEF2F2":d===""?"transparent":"#fff",color:d==="←"?"#DC2626":"#1E293B",fontSize:d==="←"?18:20,fontWeight:600,cursor:d===""?"default":"pointer",opacity:d===""?0:1}}>
-                      {d}
-                    </button>
-                  ))}
-                </div>
+                <input
+                  type="password"
+                  value={pin}
+                  onChange={e=>setPin(e.target.value)}
+                  placeholder="Ingresa tu clave..."
+                  autoFocus
+                  style={{width:"100%",padding:"12px 16px",borderRadius:10,border:"2px solid #E2E8F0",fontSize:18,textAlign:"center",letterSpacing:4,outline:"none",boxSizing:"border-box",marginBottom:8}}
+                />
+                <div style={{color:"#94A3B8",fontSize:11,textAlign:"center"}}>Mínimo 4 caracteres — letras y números</div>
               </div>
               <div style={{display:"flex",gap:10,marginTop:8}}>
                 <button onClick={()=>{setPaso("motivo");setPin("");setError("");}} style={{flex:1,padding:10,borderRadius:8,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:14,cursor:"pointer"}}>
                   ← Volver
                 </button>
-                <button onClick={confirmar} disabled={saving||pin.length!==4}
-                  style={{flex:2,padding:10,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:(saving||pin.length!==4)?0.5:1}}>
+                <button onClick={confirmar} disabled={saving||pin.length<4}
+                  style={{flex:2,padding:10,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:(saving||pin.length<4)?0.5:1}}>
                   {saving?"⏳ Procesando...":"✓ Confirmar anulación"}
                 </button>
               </div>
