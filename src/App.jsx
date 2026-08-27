@@ -1642,8 +1642,9 @@ export default function POS({ usuario, onLogout }) {
                 {!s.anulada&&(
                   <div style={{display:"flex",gap:6,marginTop:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
                     <button onClick={()=>setVentaReimprimir(s)} style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:11,cursor:"pointer"}}>🖨️ Reimprimir</button>
-                    {(puedo("anular_propio")||puedo("anular_otros"))&&(
-                      <button onClick={()=>setVentaAnular(s)} style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #FECACA",background:"#FEF2F2",color:"#DC2626",fontSize:11,cursor:"pointer"}}>↩️ Devolución</button>
+                    {(puedo("anular_propio")||puedo("anular_otros"))&&cajaActual&&
+                     new Date(s.created_at)>=new Date(cajaActual.abierta_at.replace(' ','+'))&&(
+                      <button onClick={()=>setVentaAnular(s)} style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #FECACA",background:"#FEF2F2",color:"#DC2626",fontSize:11,cursor:"pointer"}}>🚫 Anular</button>
                     )}
                   </div>
                 )}
