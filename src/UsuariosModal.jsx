@@ -82,8 +82,13 @@ export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
 
   const save = async () => {
     if (!form.nombre.trim()) { setError("El nombre es requerido"); return; }
-    if (!form.pin || form.pin.length !== 4) { setError("El PIN debe ser de 4 dígitos"); return; }
-    if (!/^\d{4}$/.test(form.pin)) { setError("El PIN solo puede contener números"); return; }
+    if (!form.pin || form.pin.length < 4) { setError("La clave debe tener al menos 4 caracteres"); return; }
+    // Validar que el PIN sea único
+    const pinExiste = await fetch(`${SUPABASE_URL}/rest/v1/usuarios?pin=eq.${encodeURIComponent(form.pin)}&activo=eq.true${editId?`&id=neq.${editId}`:""}`,{
+      headers:{"apikey":SUPABASE_KEY,"Authorization":`Bearer ${SUPABASE_KEY}`}
+    }).then(r=>r.json());
+    if(pinExiste?.length>0){ setError("Esa clave ya está en uso — elige una diferente"); return; }
+    
     setSaving(true); setError("");
     try {
       // Obtener nombre del rol seleccionado para mantener compatibilidad
@@ -215,9 +220,9 @@ export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
                       placeholder="usuario@empresa.com" type="email" style={IS}/>
                   </div>
                   <div>
-                    <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>PIN de acceso * (4 dígitos)</label>
-                    <input value={form.pin} onChange={e=>setForm(p=>({...p,pin:e.target.value.replace(/\D/g,"").slice(0,4)}))}
-                      placeholder="••••" type="password" maxLength={4} style={IS}/>
+                    <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Clave de acceso * (mín. 4 caracteres)</label>
+                    <input value={form.pin} onChange={e=>setForm(p=>({...p,pin:e.target.value}))}
+                      placeholder="Clave alfanumérica" type="password" style={IS}/>
                   </div>
                   <div>
                     <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Sucursal</label>
