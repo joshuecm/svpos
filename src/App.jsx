@@ -11,6 +11,7 @@ import InventarioModal from "./InventarioModal.jsx";
 import CombosModal from "./CombosModal.jsx";
 import CajaModal, { AperturaCaja } from "./CajaModal.jsx";
 import AnulacionModal from "./AnulacionModal.jsx";
+import ConfiguracionModal from "./ConfiguracionModal.jsx";
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
@@ -930,7 +931,7 @@ export default function POS({ usuario, onLogout }) {
   const [showCreditosModal,    setShowCreditosModal]    = useState(false);
   const [showProveedoresModal, setShowProveedoresModal] = useState(false);
   const [showInventarioModal,  setShowInventarioModal]  = useState(false);
-  const [showCajaModal,        setShowCajaModal]        = useState(false);
+  const [empresaConfig,        setEmpresaConfig]        = useState({nombre:"Smart Valion POS",nit:"",mensaje_ticket:"Gracias por su compra"});
   const [cajaActual,           setCajaActual]           = useState(null);
   const [showAperturaCaja,     setShowAperturaCaja]     = useState(false);
   const [showCombosModal,      setShowCombosModal]      = useState(false);
@@ -968,12 +969,13 @@ export default function POS({ usuario, onLogout }) {
   async function loadAll() {
     setLoading(true);
     try {
-      const [prods,clients,ventas,caja,bcos,cats,cbs]=await Promise.all([
+      const [prods,clients,ventas,caja,bcos,empConf,cats,cbs]=await Promise.all([
         sb("productos","GET",null,"?activo=eq.true&order=categoria,nombre"),
         sb("clientes","GET",null,"?activo=eq.true&order=nombre"),
         sb("ventas","GET",null,"?order=created_at.desc&limit=50"),
         sb("caja","GET",null,"?order=id.desc&limit=1"),
         sb("bancos","GET",null,"?activo=eq.true&order=nombre"),
+        sb("configuracion_empresa","GET",null,"?limit=1"),
         sb("categorias","GET",null,"?activo=eq.true&order=nombre"),
         sb("combos","GET",null,"?activo=eq.true&order=nombre"),
       ]);
@@ -1011,6 +1013,7 @@ export default function POS({ usuario, onLogout }) {
       setSalesHistory(ventas||[]);
       setCajaInfo(caja?.[0]||null);
       setBancos(bcos||[]);
+      if(empConf?.[0]) setEmpresaConfig(empConf[0]);
 
       // Cargar caja activa del cajero
       if(usuario?.nombre) {
@@ -2293,14 +2296,6 @@ export default function POS({ usuario, onLogout }) {
           isMobile={isMobile}
         />
       )}
-      {showConfigModal&&(
-        <ConfigModal
-          ivaConfig={ivaConfig}
-          onSave={saveIvaConfig}
-          onClose={()=>setShowConfigModal(false)}
-          isMobile={isMobile}
-        />
-      )}
       {showBancosModal&&(
         <BancosModal
           bancos={bancos} setBancos={setBancos}
@@ -2550,7 +2545,12 @@ export default function POS({ usuario, onLogout }) {
           </div>
         </div>
       )}
-      {ventaAnular&&(
+      {showConfigModal&&puedo("config_iva")&&(
+        <ConfiguracionModal isMobile={isMobile}
+          onClose={()=>setShowConfigModal(false)}
+          onGuardado={()=>loadAll()}
+        />
+      )}
         <AnulacionModal
           venta={ventaAnular} usuario={usuario} cajaActual={cajaActual} isMobile={isMobile}
           onClose={()=>setVentaAnular(null)}
