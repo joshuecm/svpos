@@ -1661,6 +1661,8 @@ export default function POS({ usuario, onLogout }) {
     const [abriendo,      setAbriendo]      = useState(false);
     const [salidaMonto,   setSalidaMonto]   = useState("");
     const [salidaMotivo,  setSalidaMotivo]  = useState("");
+    const [salidaPin,     setSalidaPin]     = useState("");
+    const [salidaPaso,    setSalidaPaso]    = useState("form"); // form | pin
     const [guardandoSal,  setGuardandoSal]  = useState(false);
     const [showSalida,    setShowSalida]    = useState(false);
     const [showCierre,    setShowCierre]    = useState(false);
@@ -1739,16 +1741,27 @@ export default function POS({ usuario, onLogout }) {
     const registrarSalida = async () => {
       if(!salidaMonto||parseFloat(salidaMonto)<=0){ setErrCaja("Ingresa el monto"); return; }
       if(!salidaMotivo.trim()){ setErrCaja("El motivo es obligatorio"); return; }
+      if(salidaPin.length!==4){ setErrCaja("El PIN debe ser de 4 dígitos"); return; }
       setGuardandoSal(true); setErrCaja("");
       try {
+        // Validar PIN
+        const usuarios = await sb("usuarios","GET",null,`?pin=eq.${salidaPin}&activo=eq.true`);
+        if(!usuarios?.length){ setErrCaja("PIN incorrecto"); setGuardandoSal(false); return; }
+        const autorizador = usuarios[0];
+        const permisos = await sb("rol_permisos","GET",null,
+          `?rol_id=eq.${autorizador.rol_id}&permiso=eq.salida_efectivo&valor=eq.true`
+        );
+        if(!permisos?.length){ setErrCaja(`${autorizador.nombre} no tiene permiso para autorizar salidas`); setGuardandoSal(false); return; }
+
         await sb("salidas_caja","POST",{
-          caja_id: cajaActual.id,
-          serie:   cajaActual.serie,
-          cajero:  usuario.nombre||"Admin",
-          monto:   parseFloat(salidaMonto),
-          motivo:  salidaMotivo.trim(),
+          caja_id:        cajaActual.id,
+          serie:          cajaActual.serie,
+          cajero:         usuario.nombre||"Admin",
+          monto:          parseFloat(salidaMonto),
+          motivo:         salidaMotivo.trim(),
+          autorizado_por: autorizador.nombre,
         });
-        setSalidaMonto(""); setSalidaMotivo("");
+        setSalidaMonto(""); setSalidaMotivo(""); setSalidaPin(""); setSalidaPaso("form");
         setShowSalida(false);
         await recargarDetalle();
       } catch(e){ setErrCaja("Error: "+e.message); }
@@ -1948,23 +1961,66 @@ export default function POS({ usuario, onLogout }) {
             {showSalida&&(
               <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:16,marginBottom:12}}>
                 <div style={{color:C.textMd,fontSize:13,fontWeight:600,marginBottom:12}}>💸 Registrar salida de efectivo</div>
-                <div style={{marginBottom:10}}>
-                  <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Monto *</label>
-                  <input type="number" value={salidaMonto} onChange={e=>setSalidaMonto(e.target.value)}
-                    placeholder="0.00" min="0.01" step="0.01"
-                    style={{...IS,fontSize:20,fontWeight:700,textAlign:"right",color:"#DC2626"}}/>
-                </div>
-                <div style={{marginBottom:14}}>
-                  <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Motivo *</label>
-                  <input value={salidaMotivo} onChange={e=>setSalidaMotivo(e.target.value)}
-                    placeholder="Ej: Pago proveedor, depósito bancario..." style={IS}/>
-                </div>
-                <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>{setShowSalida(false);setErrCaja("");}} style={{...BS,flex:1}}>Cancelar</button>
-                  <button onClick={registrarSalida} disabled={guardandoSal} style={{flex:2,padding:10,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:guardandoSal?0.6:1}}>
-                    {guardandoSal?"⏳ Guardando...":"✓ Registrar salida"}
-                  </button>
-                </div>
+
+                {salidaPaso==="form"&&(
+                  <>
+                    <div style={{marginBottom:10}}>
+                      <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Monto *</label>
+                      <input type="number" value={salidaMonto} onChange={e=>setSalidaMonto(e.target.value)}
+                        placeholder="0.00" min="0.01" step="0.01"
+                        style={{...IS,fontSize:20,fontWeight:700,textAlign:"right",color:"#DC2626"}}/>
+                    </div>
+                    <div style={{marginBottom:14}}>
+                      <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Motivo *</label>
+                      <input value={salidaMotivo} onChange={e=>setSalidaMotivo(e.target.value)}
+                        placeholder="Ej: Pago proveedor, depósito bancario..." style={IS}/>
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <button onClick={()=>{setShowSalida(false);setErrCaja("");setSalidaMonto("");setSalidaMotivo("");}} style={{...BS,flex:1}}>Cancelar</button>
+                      <button onClick={()=>{
+                        if(!salidaMonto||parseFloat(salidaMonto)<=0){setErrCaja("Ingresa el monto");return;}
+                        if(!salidaMotivo.trim()){setErrCaja("El motivo es obligatorio");return;}
+                        setErrCaja("");setSalidaPaso("pin");
+                      }} style={{flex:2,padding:10,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer"}}>
+                        Continuar →
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {salidaPaso==="pin"&&(
+                  <>
+                    <div style={{background:"#FEF2F2",borderRadius:8,padding:"8px 14px",marginBottom:16,textAlign:"center"}}>
+                      <div style={{color:"#DC2626",fontSize:14,fontWeight:700}}>-{fmt(salidaMonto)}</div>
+                      <div style={{color:"#475569",fontSize:12}}>{salidaMotivo}</div>
+                    </div>
+                    <div style={{color:"#1E293B",fontSize:13,fontWeight:600,marginBottom:12,textAlign:"center"}}>PIN de autorización</div>
+                    <div style={{display:"flex",justifyContent:"center",gap:12,marginBottom:16}}>
+                      {[0,1,2,3].map(i=>(
+                        <div key={i} style={{width:44,height:44,borderRadius:10,border:`2px solid ${salidaPin.length>i?"#DC2626":"#E2E8F0"}`,background:salidaPin.length>i?"#FEF2F2":"#F8F9FB",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,color:"#DC2626"}}>
+                          {salidaPin.length>i?"●":""}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,maxWidth:220,margin:"0 auto 16px"}}>
+                      {[1,2,3,4,5,6,7,8,9,"",0,"←"].map((d,i)=>(
+                        <button key={i} onClick={()=>{
+                          if(d==="←") setSalidaPin(p=>p.slice(0,-1));
+                          else if(d!==""&&salidaPin.length<4) setSalidaPin(p=>p+String(d));
+                        }} disabled={d===""} style={{height:52,borderRadius:10,border:"1.5px solid #E2E8F0",background:d==="←"?"#FEF2F2":d===""?"transparent":"#fff",color:d==="←"?"#DC2626":"#1E293B",fontSize:d==="←"?16:18,fontWeight:600,cursor:d===""?"default":"pointer",opacity:d===""?0:1}}>
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <button onClick={()=>{setSalidaPaso("form");setSalidaPin("");setErrCaja("");}} style={{...BS,flex:1}}>← Volver</button>
+                      <button onClick={registrarSalida} disabled={guardandoSal||salidaPin.length!==4}
+                        style={{flex:2,padding:10,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:(guardandoSal||salidaPin.length!==4)?0.5:1}}>
+                        {guardandoSal?"⏳ Guardando...":"✓ Confirmar salida"}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
