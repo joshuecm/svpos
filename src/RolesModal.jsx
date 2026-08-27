@@ -50,9 +50,10 @@ const GRUPOS = [
   {
     label: "💰 Caja",
     permisos: [
-      {key:"abrir_cerrar_caja",        label:"Abrir / Cerrar caja",      desc:"Apertura y cierre de caja"},
-      {key:"ver_reporte_caja",         label:"Ver reporte resumido",      desc:"Ver totales y movimientos de caja"},
-      {key:"ver_reporte_caja_detallado",label:"Ver reporte detallado",    desc:"Ver cierre con lista de facturas del turno"},
+      {key:"abrir_cerrar_caja",         label:"Abrir / Cerrar caja",      desc:"Apertura y cierre de caja"},
+      {key:"ver_reporte_caja",          label:"Ver reporte resumido",      desc:"Ver totales y movimientos de caja"},
+      {key:"ver_reporte_caja_detallado",label:"Ver reporte detallado",     desc:"Ver cierre con lista de facturas del turno"},
+      {key:"salida_efectivo",           label:"Registrar salida de efectivo", desc:"Autorizar salidas de efectivo de caja"},
     ]
   },
   {
