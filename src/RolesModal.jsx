@@ -50,8 +50,9 @@ const GRUPOS = [
   {
     label: "💰 Caja",
     permisos: [
-      {key:"abrir_cerrar_caja",  label:"Abrir / Cerrar caja",   desc:"Apertura y cierre de caja"},
-      {key:"ver_reporte_caja",   label:"Ver reporte de caja",   desc:"Ver totales y movimientos de caja"},
+      {key:"abrir_cerrar_caja",        label:"Abrir / Cerrar caja",      desc:"Apertura y cierre de caja"},
+      {key:"ver_reporte_caja",         label:"Ver reporte resumido",      desc:"Ver totales y movimientos de caja"},
+      {key:"ver_reporte_caja_detallado",label:"Ver reporte detallado",    desc:"Ver cierre con lista de facturas del turno"},
     ]
   },
   {
@@ -88,7 +89,7 @@ const DEFAULTS_SISTEMA = {
   "Super Admin": Object.fromEntries(ALL_PERMISOS.map(k => [k, true])),
   "Admin":       Object.fromEntries(ALL_PERMISOS.map(k => [k, !["sucursales","config_fel"].includes(k)])),
   "Supervisor":  Object.fromEntries(ALL_PERMISOS.map(k => [k, ["pos","historial_propio","historial_global","anular_propio","anular_otros","abrir_cerrar_caja","ver_reporte_caja","catalogo_clientes","reportes","descuentos"].includes(k)])),
-  "Cajero":      Object.fromEntries(ALL_PERMISOS.map(k => [k, ["pos","historial_propio","anular_propio","abrir_cerrar_caja"].includes(k)])),
+  "Cajero":      Object.fromEntries(ALL_PERMISOS.map(k => [k, ["pos","historial_propio","anular_propio","abrir_cerrar_caja","ver_reporte_caja","ver_reporte_caja_detallado","salida_efectivo"].includes(k)])),
 };
 
 const FORM_EMPTY = {nombre:"", descripcion:"", permisos: Object.fromEntries(ALL_PERMISOS.map(k=>[k,false]))};
