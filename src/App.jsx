@@ -1816,7 +1816,7 @@ export default function POS({ usuario, onLogout }) {
     const registrarSalida = async () => {
       if(!salidaMonto||parseFloat(salidaMonto)<=0){ setErrCaja("Ingresa el monto"); return; }
       if(!salidaMotivo.trim()){ setErrCaja("El motivo es obligatorio"); return; }
-      if(salidaPin.length!==4){ setErrCaja("El PIN debe ser de 4 dígitos"); return; }
+      if(salidaPin.length<4){ setErrCaja("La clave debe tener al menos 4 caracteres"); return; }
       setGuardandoSal(true); setErrCaja("");
       try {
         // Validar PIN
@@ -2077,27 +2077,19 @@ export default function POS({ usuario, onLogout }) {
                       <div style={{color:"#475569",fontSize:12}}>{salidaMotivo}</div>
                     </div>
                     <div style={{color:"#1E293B",fontSize:13,fontWeight:600,marginBottom:12,textAlign:"center"}}>PIN de autorización</div>
-                    <div style={{display:"flex",justifyContent:"center",gap:12,marginBottom:16}}>
-                      {[0,1,2,3].map(i=>(
-                        <div key={i} style={{width:44,height:44,borderRadius:10,border:`2px solid ${salidaPin.length>i?"#DC2626":"#E2E8F0"}`,background:salidaPin.length>i?"#FEF2F2":"#F8F9FB",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,color:"#DC2626"}}>
-                          {salidaPin.length>i?"●":""}
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,maxWidth:220,margin:"0 auto 16px"}}>
-                      {[1,2,3,4,5,6,7,8,9,"",0,"←"].map((d,i)=>(
-                        <button key={i} onClick={()=>{
-                          if(d==="←") setSalidaPin(p=>p.slice(0,-1));
-                          else if(d!==""&&salidaPin.length<4) setSalidaPin(p=>p+String(d));
-                        }} disabled={d===""} style={{height:52,borderRadius:10,border:"1.5px solid #E2E8F0",background:d==="←"?"#FEF2F2":d===""?"transparent":"#fff",color:d==="←"?"#DC2626":"#1E293B",fontSize:d==="←"?16:18,fontWeight:600,cursor:d===""?"default":"pointer",opacity:d===""?0:1}}>
-                          {d}
-                        </button>
-                      ))}
-                    </div>
+                    <input
+                      type="password"
+                      value={salidaPin}
+                      onChange={e=>setSalidaPin(e.target.value)}
+                      placeholder="Ingresa tu clave..."
+                      autoFocus
+                      style={{width:"100%",padding:"12px 16px",borderRadius:10,border:"2px solid #E2E8F0",fontSize:18,textAlign:"center",letterSpacing:4,outline:"none",boxSizing:"border-box",marginBottom:8}}
+                    />
+                    <div style={{color:"#94A3B8",fontSize:11,textAlign:"center",marginBottom:16}}>Mínimo 4 caracteres — letras y números</div>
                     <div style={{display:"flex",gap:8}}>
                       <button onClick={()=>{setSalidaPaso("form");setSalidaPin("");setErrCaja("");}} style={{...BS,flex:1}}>← Volver</button>
-                      <button onClick={registrarSalida} disabled={guardandoSal||salidaPin.length!==4}
-                        style={{flex:2,padding:10,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:(guardandoSal||salidaPin.length!==4)?0.5:1}}>
+                      <button onClick={registrarSalida} disabled={guardandoSal||salidaPin.length<4}
+                        style={{flex:2,padding:10,borderRadius:8,border:"none",background:"#DC2626",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:(guardandoSal||salidaPin.length<4)?0.5:1}}>
                         {guardandoSal?"⏳ Guardando...":"✓ Confirmar salida"}
                       </button>
                     </div>
