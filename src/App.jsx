@@ -1643,7 +1643,7 @@ export default function POS({ usuario, onLogout }) {
                   <div style={{display:"flex",gap:6,marginTop:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
                     <button onClick={()=>setVentaReimprimir(s)} style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:11,cursor:"pointer"}}>🖨️ Reimprimir</button>
                     {(puedo("anular_propio")||puedo("anular_otros"))&&cajaActual&&
-                     new Date(s.created_at)>=new Date(cajaActual.abierta_at.replace(' ','+'))&&(
+                     new Date(s.created_at)>=new Date(cajaActual.abierta_at)&&(
                       <button onClick={()=>setVentaAnular(s)} style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #FECACA",background:"#FEF2F2",color:"#DC2626",fontSize:11,cursor:"pointer"}}>🚫 Anular</button>
                     )}
                   </div>
@@ -1682,7 +1682,7 @@ export default function POS({ usuario, onLogout }) {
       cargado.current = true;
       const cargar = async () => {
         try {
-          const fechaAbierta = cajaActual.abierta_at.replace(' ', '+');
+          const fechaAbierta = new Date(cajaActual.abierta_at).toISOString();
           const [sal, abon] = await Promise.all([
             sb("salidas_caja","GET",null,`?caja_id=eq.${cajaActual.id}&order=created_at.asc`),
             sb("abonos_credito","GET",null,`?cajero=eq.${encodeURIComponent(cajaActual.cajero)}&created_at=gte.${encodeURIComponent(fechaAbierta)}&order=created_at.asc`),
@@ -1704,7 +1704,7 @@ export default function POS({ usuario, onLogout }) {
     const recargarDetalle = async () => {
       if(!cajaActual) return;
       try {
-        const fechaAbierta = cajaActual.abierta_at.replace(' ', '+');
+        const fechaAbierta = new Date(cajaActual.abierta_at).toISOString();
         const [sal, abon] = await Promise.all([
           sb("salidas_caja","GET",null,`?caja_id=eq.${cajaActual.id}&order=created_at.asc`),
           sb("abonos_credito","GET",null,`?cajero=eq.${encodeURIComponent(cajaActual.cajero)}&created_at=gte.${encodeURIComponent(fechaAbierta)}&order=created_at.asc`),
@@ -1813,14 +1813,14 @@ export default function POS({ usuario, onLogout }) {
 
     // Calcular totales solo del turno actual
     const ventasTurno = (cajaActual
-      ? salesHistory.filter(v=> !v.anulada && new Date(v.created_at) >= new Date(cajaActual.abierta_at.replace(' ','+')) && v.cajero===cajaActual.cajero)
+      ? salesHistory.filter(v=> !v.anulada && new Date(v.created_at) >= new Date(cajaActual.abierta_at) && v.cajero===cajaActual.cajero)
       : salesHistory.filter(v=> !v.anulada)
     ).map(v=>({
       ...v,
       _clienteNombre: customers.find(c=>c.id===v.cliente_id)?.nombre||(v.cliente_id?"Cliente":"Mostrador"),
     }));
     const ventasTurnoConAnuladas = (cajaActual
-      ? salesHistory.filter(v=> new Date(v.created_at) >= new Date(cajaActual.abierta_at.replace(' ','+')) && v.cajero===cajaActual.cajero)
+      ? salesHistory.filter(v=> new Date(v.created_at) >= new Date(cajaActual.abierta_at) && v.cajero===cajaActual.cajero)
       : salesHistory
     ).map(v=>({
       ...v,
@@ -2100,21 +2100,43 @@ export default function POS({ usuario, onLogout }) {
 
                 <div style={{display:"flex",gap:8}}>
                   <button onClick={()=>{setShowCierre(false);setErrCaja("");}} style={{...BS,flex:1}}>Cancelar</button>
-                  <button onClick={()=>{
+                  <button onClick={async ()=>{
                     if(efectivoDecl===""){setErrCaja("Ingresa el efectivo declarado");return;}
-                    // Generar previsualización del ticket sin cerrar caja
-                    setTicketCierre({
-                      cajero:cajaActual.cajero, serie:cajaActual.serie,
-                      sucursal:cajaActual.sucursal, abierta_at:cajaActual.abierta_at,
-                      cerrada_at:new Date().toISOString(), fondo,
-                      totalEfectivo, totalTarjeta, totalTransfer, totalCredito,
-                      totalAbonos, totalSalidas, totalVentas, efectivoEsperado,
-                      efectivoDecl:parseFloat(efectivoDecl), diferencia,
-                      observaciones:obsDecl.trim()||null, salidas,
-                      abonos:abonos.map(a=>({...a})),
-                      ventas:modoCierre==="detallado"?ventasTurno.map(v=>({...v,_clienteNombre:customers.find(c=>c.id===v.cliente_id)?.nombre||(v.cliente_id?"Cliente":"Mostrador")})):[],
-                      modo:modoCierre, _preview:true,
-                    });
+                    try {
+                      // Consultar ventas frescas del turno desde BD (incluye anuladas)
+                      const fechaAb = new Date(cajaActual.abierta_at).toISOString();
+                      const ventasFrescas = await sb("ventas","GET",null,
+                        `?cajero=eq.${encodeURIComponent(cajaActual.cajero)}&created_at=gte.${fechaAb}&order=created_at.asc`
+                      );
+                      const ventasConNombre = (ventasFrescas||[]).map(v=>({
+                        ...v,
+                        _clienteNombre: customers.find(c=>c.id===v.cliente_id)?.nombre||(v.cliente_id?"Cliente":"Mostrador"),
+                      }));
+                      const ventasValidas = ventasConNombre.filter(v=>!v.anulada);
+                      const efect  = ventasValidas.filter(v=>(v.metodo_pago||"").includes("cash")).reduce((s,v)=>s+parseFloat(v.total||0),0);
+                      const trans  = ventasValidas.filter(v=>(v.metodo_pago||"").includes("transfer")).reduce((s,v)=>s+parseFloat(v.total||0),0);
+                      const tarj   = ventasValidas.filter(v=>(v.metodo_pago||"").includes("card")).reduce((s,v)=>s+parseFloat(v.total||0),0);
+                      const cred   = ventasValidas.filter(v=>(v.metodo_pago||"").includes("credit")).reduce((s,v)=>s+parseFloat(v.total||0),0);
+                      const totalV = efect+trans+tarj+cred;
+                      const totalAb = abonos.reduce((s,a)=>s+parseFloat(a.monto||0),0);
+                      const totalSal = salidas.reduce((s,e)=>s+parseFloat(e.monto||0),0);
+                      const fondoI  = parseFloat(cajaActual.fondo_inicial||0);
+                      const efEsp   = fondoI+efect+totalAb-totalSal;
+                      const decl    = parseFloat(efectivoDecl);
+                      setTicketCierre({
+                        cajero:cajaActual.cajero, serie:cajaActual.serie,
+                        sucursal:cajaActual.sucursal, abierta_at:cajaActual.abierta_at,
+                        cerrada_at:new Date().toISOString(), fondo:fondoI,
+                        totalEfectivo:efect, totalTarjeta:tarj, totalTransfer:trans, totalCredito:cred,
+                        totalAbonos:totalAb, totalSalidas:totalSal, totalVentas:totalV,
+                        efectivoEsperado:efEsp,
+                        efectivoDecl:decl, diferencia:decl-efEsp,
+                        observaciones:obsDecl.trim()||null, salidas,
+                        abonos:abonos.map(a=>({...a})),
+                        ventas:modoCierre==="detallado"?ventasConNombre:[],
+                        modo:modoCierre, _preview:true,
+                      });
+                    } catch(e){ setErrCaja("Error al generar ticket: "+e.message); }
                   }} disabled={efectivoDecl===""} style={{flex:2,padding:10,borderRadius:8,border:"none",background:"#3B82F6",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:efectivoDecl===""?0.5:1}}>
                     👁️ Previsualizar ticket
                   </button>
