@@ -2106,7 +2106,7 @@ export default function POS({ usuario, onLogout }) {
                       // Consultar ventas frescas del turno desde BD (incluye anuladas)
                       const fechaAb = new Date(cajaActual.abierta_at).toISOString();
                       const ventasFrescas = await sb("ventas","GET",null,
-                        `?cajero=eq.${encodeURIComponent(cajaActual.cajero)}&created_at=gte.${fechaAb}&order=created_at.asc`
+                        `?cajero=eq.${cajaActual.cajero.replace(/ /g,"%20")}&created_at=gte.${fechaAb}&order=created_at.asc`
                       );
                       const ventasConNombre = (ventasFrescas||[]).map(v=>({
                         ...v,
