@@ -1813,8 +1813,8 @@ export default function POS({ usuario, onLogout }) {
 
     // Calcular totales solo del turno actual
     const ventasTurno = (cajaActual
-      ? salesHistory.filter(v=> new Date(v.created_at) >= new Date(cajaActual.abierta_at) && v.cajero===cajaActual.cajero)
-      : salesHistory
+      ? salesHistory.filter(v=> !v.anulada && new Date(v.created_at) >= new Date(cajaActual.abierta_at.replace(' ','+')) && v.cajero===cajaActual.cajero)
+      : salesHistory.filter(v=> !v.anulada)
     ).map(v=>({
       ...v,
       _clienteNombre: customers.find(c=>c.id===v.cliente_id)?.nombre||(v.cliente_id?"Cliente":"Mostrador"),
