@@ -1537,9 +1537,45 @@ export default function POS({ usuario, onLogout }) {
   const ProductGrid = () => (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{padding:isMobile?"10px 12px":"14px 18px",borderBottom:`1px solid ${C.border}`,background:C.card}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)}
-          placeholder="🔍 Buscar nombre, SKU o código..."
-          style={{...inputStyle,marginBottom:10,fontSize:isMobile?16:14}}/>
+        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)}
+            placeholder="🔍 Buscar nombre, SKU o código..."
+            style={{...inputStyle,marginBottom:0,fontSize:isMobile?16:14,flex:1}}/>
+          {!isMobile&&holdSales.length>0&&(
+            <div style={{position:"relative",flexShrink:0}}>
+              <button onClick={()=>setShowHoldPanel(p=>!p)}
+                style={{...btnSecondary,padding:"8px 12px",fontSize:13,background:showHoldPanel?C.blueBg:"#fff",color:showHoldPanel?C.blue:"#475569",border:`1.5px solid ${showHoldPanel?C.blue:"#E2E8F0"}`,whiteSpace:"nowrap"}}>
+                ⏸ {holdSales.length} en espera
+              </button>
+              {showHoldPanel&&(
+                <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,background:"#fff",border:`1px solid ${C.border}`,borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",zIndex:200,minWidth:280}}>
+                  <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,color:C.textMd,fontSize:12,fontWeight:600}}>
+                    Facturas en espera
+                  </div>
+                  {holdSales.map(h=>(
+                    <div key={h.id} style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                      <div>
+                        <div style={{color:C.text,fontSize:13,fontWeight:600}}>{h.customer?.nombre||"Mostrador"}</div>
+                        <div style={{color:C.textSm,fontSize:11}}>{h.cart.length} producto{h.cart.length!==1?"s":""} · {fmt(h.cart.reduce((s,i)=>s+(i.precio*i.qty),0))}</div>
+                        <div style={{color:C.textSm,fontSize:10}}>{h.time}</div>
+                      </div>
+                      <div style={{display:"flex",gap:6}}>
+                        <button onClick={()=>{recoverHold(h);setShowHoldPanel(false);}}
+                          style={{padding:"4px 10px",borderRadius:6,border:"none",background:C.blue,color:"#fff",fontSize:12,cursor:"pointer",fontWeight:600}}>
+                          ▶ Recuperar
+                        </button>
+                        <button onClick={()=>setHoldSales(prev=>prev.filter(s=>s.id!==h.id))}
+                          style={{padding:"4px 8px",borderRadius:6,border:"1px solid #FECACA",background:"#FEF2F2",color:"#DC2626",fontSize:12,cursor:"pointer"}}>
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
           {categories.map(cat=>(
             <button key={cat.nombre} onClick={()=>setCategory(cat.nombre)} style={{padding:isMobile?"6px 12px":"4px 12px",borderRadius:20,border:`1.5px solid ${category===cat.nombre?C.blue:C.border}`,background:category===cat.nombre?C.blueBg:C.card,color:category===cat.nombre?C.blue:C.textMd,fontSize:isMobile?13:12,cursor:"pointer",fontWeight:category===cat.nombre?600:400}}>
@@ -2574,4 +2610,3 @@ export default function POS({ usuario, onLogout }) {
     </div>
   );
 }
-
