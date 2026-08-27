@@ -106,11 +106,16 @@ export default function AnulacionModal({ venta, usuario, cajaActual, onClose, on
 
       // 3. Revertir stock
       const detalles = await sb("detalle_ventas","GET",null,`?venta_id=eq.${venta.id}`);
+      console.log("Detalles venta:", detalles);
       for(const det of (detalles||[])) {
+        console.log("Producto ID:", det.producto_id, "Cantidad:", det.cantidad);
         const prods = await sb("productos","GET",null,`?id=eq.${det.producto_id}`);
+        console.log("Producto encontrado:", prods?.[0]);
         if(prods?.[0]) {
+          const nuevoStock = parseFloat(prods[0].stock||0) + parseFloat(det.cantidad||0);
+          console.log("Nuevo stock:", nuevoStock);
           await sb(`productos?id=eq.${det.producto_id}`,"PATCH",{
-            stock: parseFloat(prods[0].stock||0) + parseFloat(det.cantidad||0)
+            stock: nuevoStock
           });
         }
       }
