@@ -973,7 +973,7 @@ export default function POS({ usuario, onLogout }) {
         sb("productos","GET",null,"?activo=eq.true&order=categoria,nombre"),
         sb("clientes","GET",null,"?activo=eq.true&order=nombre"),
         sb("ventas","GET",null,"?order=created_at.desc&limit=50"),
-        sb("caja","GET",null,"?order=id.desc&limit=1"),
+        sb("cajas","GET",null,"?order=id.desc&limit=1"),
         sb("bancos","GET",null,"?activo=eq.true&order=nombre"),
         sb("configuracion_empresa","GET",null,"?limit=1"),
         sb("categorias","GET",null,"?activo=eq.true&order=nombre"),
