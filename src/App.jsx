@@ -1724,7 +1724,7 @@ export default function POS({ usuario, onLogout }) {
                   <div style={{display:"flex",gap:6,marginTop:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
                     <button onClick={()=>setVentaReimprimir(s)} style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #E2E8F0",background:"#fff",color:"#475569",fontSize:11,cursor:"pointer"}}>🖨️ Reimprimir</button>
                     {(puedo("anular_propio")||puedo("anular_otros"))&&cajaActual&&
-                     new Date(s.created_at)>=new Date(cajaActual.abierta_at)&&(
+                     s?.created_at && new Date(s.created_at)>=new Date(cajaActual.abierta_at)&&(
                       <button onClick={()=>setVentaAnular(s)} style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #FECACA",background:"#FEF2F2",color:"#DC2626",fontSize:11,cursor:"pointer"}}>🚫 Anular</button>
                     )}
                   </div>
@@ -1894,14 +1894,14 @@ export default function POS({ usuario, onLogout }) {
 
     // Calcular totales solo del turno actual
     const ventasTurno = (cajaActual
-      ? salesHistory.filter(v=> !v.anulada && new Date(v.created_at) >= new Date(cajaActual.abierta_at) && v.cajero===cajaActual.cajero)
+      ? salesHistory.filter(v=> v?.created_at && !v.anulada && new Date(v.created_at) >= new Date(cajaActual.abierta_at) && v.cajero===cajaActual.cajero)
       : salesHistory.filter(v=> !v.anulada)
     ).map(v=>({
       ...v,
       _clienteNombre: customers.find(c=>c.id===v.cliente_id)?.nombre||(v.cliente_id?"Cliente":"Mostrador"),
     }));
     const ventasTurnoConAnuladas = (cajaActual
-      ? salesHistory.filter(v=> new Date(v.created_at) >= new Date(cajaActual.abierta_at) && v.cajero===cajaActual.cajero)
+      ? salesHistory.filter(v=> v?.created_at && new Date(v.created_at) >= new Date(cajaActual.abierta_at) && v.cajero===cajaActual.cajero)
       : salesHistory
     ).map(v=>({
       ...v,
