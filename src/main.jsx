@@ -42,4 +42,6 @@ function Root() {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode><Root/></React.StrictMode>
+
+  // v2.0 - backup 28/08/2026
 )
