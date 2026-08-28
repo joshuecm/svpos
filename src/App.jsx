@@ -653,6 +653,169 @@ function TicketModal({ ticket, bancos, onClose, isMobile }) {
   );
 }
 
+// ─── SETUP WIZARD ─────────────────────────────────────────────────────────────
+function SetupWizard({ onComplete, ivaConfig, isMobile }) {
+  const [paso,    setPaso]    = useState(1);
+  const [empresa, setEmpresa] = useState({nombre:"",nit:"",mensaje_ticket:"Gracias por su compra",tamano_impresora:"80"});
+  const [sucursal,setSucursal]= useState({nombre:"Tienda Principal",serie:"TP",tipo:"tienda",direccion:"",telefono:""});
+  const [iva,     setIva]     = useState({...ivaConfig});
+  const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState("");
+
+  const SB_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
+  const SB_KEY = "sb_publishable_-BLot_F7KegMytm1jJ9jYg_n0SR2Q-q";
+  const sbw = async (table, method="GET", body=null, query="") => {
+    const res = await fetch(`${SB_URL}/rest/v1/${table}${query}`, {
+      method, headers:{"apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`,"Content-Type":"application/json","Prefer":method==="POST"?"return=representation":""},
+      body:body?JSON.stringify(body):null,
+    });
+    if(!res.ok){ const e=await res.text(); throw new Error(e); }
+    const t=await res.text(); return t?JSON.parse(t):null;
+  };
+
+  const finalizar = async () => {
+    if(!empresa.nombre.trim()){ setError("El nombre del negocio es obligatorio"); setPaso(1); return; }
+    if(!sucursal.serie.trim()){ setError("La serie es obligatoria"); setPaso(2); return; }
+    setSaving(true); setError("");
+    try {
+      const empExiste = await sbw("configuracion_empresa","GET",null,"?limit=1");
+      if(empExiste?.[0]) {
+        await sbw(`configuracion_empresa?id=eq.${empExiste[0].id}`,"PATCH",{
+          nombre:empresa.nombre.trim(), nit:empresa.nit?.trim()||null,
+          mensaje_ticket:empresa.mensaje_ticket?.trim()||null,
+          tamano_impresora:empresa.tamano_impresora||"80",
+        });
+      } else {
+        await sbw("configuracion_empresa","POST",{
+          nombre:empresa.nombre.trim(), nit:empresa.nit?.trim()||null,
+          mensaje_ticket:empresa.mensaje_ticket?.trim()||null,
+          tamano_impresora:empresa.tamano_impresora||"80",
+        });
+      }
+      const sucs = await sbw("sucursales","GET",null,"?order=id&limit=1");
+      if(sucs?.[0]) {
+        await sbw(`sucursales?id=eq.${sucs[0].id}`,"PATCH",{
+          nombre:sucursal.nombre.trim(), serie:sucursal.serie.toUpperCase().trim(),
+          tipo:sucursal.tipo, direccion:sucursal.direccion?.trim()||null,
+          telefono:sucursal.telefono?.trim()||null,
+        });
+      } else {
+        await sbw("sucursales","POST",{
+          nombre:sucursal.nombre.trim(), serie:sucursal.serie.toUpperCase().trim(),
+          tipo:sucursal.tipo, direccion:sucursal.direccion?.trim()||null,
+          telefono:sucursal.telefono?.trim()||null, activa:true,
+        });
+      }
+      onComplete({empresa, iva});
+    } catch(e){ setError("Error: "+e.message); }
+    setSaving(false);
+  };
+
+  const PASOS = ["Empresa","Sucursal","IVA"];
+  return(
+    <div style={{position:"fixed",inset:0,background:"linear-gradient(135deg,#1E293B 0%,#0F172A 100%)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500}}>
+      <div style={{background:"#fff",borderRadius:20,boxShadow:"0 25px 80px rgba(0,0,0,0.4)",width:isMobile?"95vw":"520px",overflow:"hidden"}}>
+        <div style={{background:"#3B82F6",padding:"24px 28px"}}>
+          <div style={{color:"#fff",fontSize:22,fontWeight:800,marginBottom:4}}>⚡ Smart Valion POS</div>
+          <div style={{color:"#BFDBFE",fontSize:14}}>Configuración inicial — {PASOS[paso-1]}</div>
+          <div style={{display:"flex",gap:8,marginTop:16}}>
+            {PASOS.map((p,i)=>(
+              <div key={i} style={{flex:1,height:4,borderRadius:4,background:i<paso?"#fff":"rgba(255,255,255,0.3)",transition:"all 0.3s"}}/>
+            ))}
+          </div>
+        </div>
+        <div style={{padding:28,maxHeight:"70vh",overflowY:"auto"}}>
+          {error&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"8px 14px",color:"#DC2626",fontSize:13,marginBottom:16}}>{error}</div>}
+          {paso===1&&(
+            <div>
+              <div style={{color:"#1E293B",fontSize:16,fontWeight:700,marginBottom:4}}>🏢 Datos de tu negocio</div>
+              <div style={{color:"#94A3B8",fontSize:13,marginBottom:20}}>Esta información aparecerá en los tickets de venta</div>
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Nombre del negocio *</label>
+                  <input value={empresa.nombre} onChange={e=>setEmpresa(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Supermercado La Economía" style={IS} autoFocus/></div>
+                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>NIT</label>
+                  <input value={empresa.nit||""} onChange={e=>setEmpresa(p=>({...p,nit:e.target.value}))} placeholder="Ej: 123456-7" style={IS}/></div>
+                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Mensaje en ticket</label>
+                  <input value={empresa.mensaje_ticket||""} onChange={e=>setEmpresa(p=>({...p,mensaje_ticket:e.target.value}))} placeholder="Ej: Gracias por su compra" style={IS}/></div>
+                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Tamaño de impresora</label>
+                  <select value={empresa.tamano_impresora||"80"} onChange={e=>setEmpresa(p=>({...p,tamano_impresora:e.target.value}))} style={{...IS,cursor:"pointer"}}>
+                    <option value="58">58mm — impresora pequeña</option>
+                    <option value="80">80mm — impresora estándar</option>
+                  </select></div>
+              </div>
+              <button onClick={()=>{if(!empresa.nombre.trim()){setError("El nombre es obligatorio");return;}setError("");setPaso(2);}} style={{...BP,width:"100%",padding:14,fontSize:15,marginTop:20}}>Continuar →</button>
+            </div>
+          )}
+          {paso===2&&(
+            <div>
+              <div style={{color:"#1E293B",fontSize:16,fontWeight:700,marginBottom:4}}>🏪 Primera sucursal</div>
+              <div style={{color:"#94A3B8",fontSize:13,marginBottom:20}}>Configura tu primera tienda o bodega</div>
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Nombre *</label>
+                  <input value={sucursal.nombre} onChange={e=>setSucursal(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Tienda Principal" style={IS}/></div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Serie * (única)</label>
+                    <input value={sucursal.serie} onChange={e=>setSucursal(p=>({...p,serie:e.target.value.toUpperCase()}))} placeholder="Ej: TP" maxLength={5} style={IS}/>
+                    <div style={{color:"#94A3B8",fontSize:11,marginTop:4}}>Identifica la sucursal en facturas</div></div>
+                  <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Tipo</label>
+                    <select value={sucursal.tipo} onChange={e=>setSucursal(p=>({...p,tipo:e.target.value}))} style={{...IS,cursor:"pointer"}}>
+                      <option value="tienda">🏪 Tienda</option>
+                      <option value="bodega">📦 Bodega</option>
+                    </select></div>
+                </div>
+                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Dirección</label>
+                  <input value={sucursal.direccion||""} onChange={e=>setSucursal(p=>({...p,direccion:e.target.value}))} placeholder="Ej: Av. Petapa 5-10 Zona 12" style={IS}/></div>
+                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Teléfono</label>
+                  <input value={sucursal.telefono||""} onChange={e=>setSucursal(p=>({...p,telefono:e.target.value}))} placeholder="Ej: 2345-6789" style={IS}/></div>
+              </div>
+              <div style={{display:"flex",gap:10,marginTop:20}}>
+                <button onClick={()=>{setError("");setPaso(1);}} style={{...BS,flex:1}}>← Volver</button>
+                <button onClick={()=>{if(!sucursal.serie.trim()){setError("La serie es obligatoria");return;}setError("");setPaso(3);}} style={{...BP,flex:2,padding:14,fontSize:15}}>Continuar →</button>
+              </div>
+            </div>
+          )}
+          {paso===3&&(
+            <div>
+              <div style={{color:"#1E293B",fontSize:16,fontWeight:700,marginBottom:4}}>💰 Configuración de IVA</div>
+              <div style={{color:"#94A3B8",fontSize:13,marginBottom:20}}>¿Cómo manejas el IVA en tu negocio?</div>
+              <div style={{marginBottom:16}}>
+                <label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:8}}>Porcentaje de IVA</label>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <input type="number" min="0" max="100" step="0.1" value={iva.porcentaje} onChange={e=>setIva(p=>({...p,porcentaje:parseFloat(e.target.value)||0}))} style={{...IS,width:90,fontSize:22,fontWeight:700,textAlign:"center"}}/>
+                  <span style={{color:"#475569",fontSize:28,fontWeight:700}}>%</span>
+                  <div style={{color:"#94A3B8",fontSize:12}}>Guatemala: <strong>12%</strong></div>
+                </div>
+              </div>
+              <div style={{marginBottom:20}}>
+                {IVA_MODOS.map(modo=>{
+                  const sel=iva.modo===modo.id;
+                  return(
+                    <button key={modo.id} onClick={()=>setIva(p=>({...p,modo:modo.id}))} style={{width:"100%",padding:"12px 14px",marginBottom:8,borderRadius:10,cursor:"pointer",textAlign:"left",border:`2px solid ${sel?"#3B82F6":"#E2E8F0"}`,background:sel?"#EFF6FF":"#F8FAFC"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        <div style={{width:16,height:16,borderRadius:"50%",border:`2px solid ${sel?"#3B82F6":"#E2E8F0"}`,background:sel?"#3B82F6":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                          {sel&&<div style={{width:6,height:6,borderRadius:"50%",background:"#fff"}}/>}
+                        </div>
+                        <span style={{color:"#1E293B",fontWeight:700,fontSize:13}}>{modo.label}</span>
+                        <span style={{color:"#94A3B8",fontSize:12}}> — {modo.sublabel}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{display:"flex",gap:10}}>
+                <button onClick={()=>{setError("");setPaso(2);}} style={{...BS,flex:1}}>← Volver</button>
+                <button onClick={finalizar} disabled={saving} style={{...BP,flex:2,padding:14,fontSize:15,opacity:saving?0.6:1}}>
+                  {saving?"⏳ Configurando...":"✓ Comenzar a usar"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── CONFIG IVA MODAL ─────────────────────────────────────────────────────────
 function ConfigModal({ ivaConfig, onSave, onClose, isMobile }) {
   const [temp, setTemp] = useState({...ivaConfig});
@@ -921,6 +1084,7 @@ export default function POS({ usuario, onLogout }) {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showTicketModal,   setShowTicketModal]   = useState(false);
   const [showConfigModal,   setShowConfigModal]   = useState(false);
+  const [showWizard,        setShowWizard]        = useState(false);
   const [showBancosModal,   setShowBancosModal]   = useState(false);
   const [showUsuariosModal, setShowUsuariosModal] = useState(false);
   const [showRolesModal,    setShowRolesModal]    = useState(false);
@@ -930,7 +1094,10 @@ export default function POS({ usuario, onLogout }) {
   const [showCreditosModal,    setShowCreditosModal]    = useState(false);
   const [showProveedoresModal, setShowProveedoresModal] = useState(false);
   const [showInventarioModal,  setShowInventarioModal]  = useState(false);
-  const [empresaConfig,        setEmpresaConfig]        = useState({nombre:"Smart Valion POS",nit:"",mensaje_ticket:"Gracias por su compra"});
+  const [empresaConfig, setEmpresaConfig] = useState({
+    nombre:"Smart Valion POS", nit:"", direccion:"", telefono:"",
+    mensaje_ticket:"Gracias por su compra", tamano_impresora:"80",
+  });
   const [cajaActual,           setCajaActual]           = useState(null);
   const [showAperturaCaja,     setShowAperturaCaja]     = useState(false);
   const [showCombosModal,      setShowCombosModal]      = useState(false);
@@ -1016,6 +1183,16 @@ export default function POS({ usuario, onLogout }) {
       setSalesHistory((ventas||[]).filter(v=>v&&v.id));
       setCajaInfo(caja?.[0]||null);
       setBancos(bcos||[]);
+
+      // Cargar config empresa — detectar primer uso
+      try {
+        const emp = await sb("configuracion_empresa","GET",null,"?limit=1");
+        if(emp?.[0]) {
+          setEmpresaConfig(prev=>({...prev,...emp[0]}));
+        } else if(tienePermiso(usuario,"config_iva")) {
+          setShowWizard(true);
+        }
+      } catch(e){ console.warn("Sin config empresa:", e.message); }
 
       // Cargar caja activa del cajero
       if(usuario?.nombre) {
@@ -2289,6 +2466,23 @@ export default function POS({ usuario, onLogout }) {
           onSelect={(c)=>{setCustomer(c);setShowCustomerModal(false);notify(`Cliente: ${c.nombre}`);}}
           onClose={()=>setShowCustomerModal(false)}
           isMobile={isMobile}
+        />
+      )}
+      {showWizard&&(
+        <SetupWizard
+          ivaConfig={ivaConfig} isMobile={isMobile}
+          onComplete={({empresa,iva})=>{
+            setEmpresaConfig(prev=>({...prev,...empresa}));
+            saveIvaConfig(iva);
+            setShowWizard(false);
+            notify("✓ Configuración inicial completada");
+          }}
+        />
+      )}
+      {showConfigModal&&(
+        <ConfigModal
+          ivaConfig={ivaConfig} onSave={saveIvaConfig}
+          onClose={()=>setShowConfigModal(false)} isMobile={isMobile}
         />
       )}
       {showTicketModal&&(
