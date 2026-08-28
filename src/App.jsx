@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from "react";
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { tienePermiso, ROLES, ROL_COLOR, ROL_BG, ROL_ICON } from "./usuarios.js";
 import UsuariosModal from "./UsuariosModal.jsx";
 import RolesModal from "./RolesModal.jsx";
