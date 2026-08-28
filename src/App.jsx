@@ -969,16 +969,20 @@ export default function POS({ usuario, onLogout }) {
   async function loadAll() {
     setLoading(true);
     try {
-      const [prods,clients,ventas,caja,bcos,empConf,cats,cbs]=await Promise.all([
+      const [prods,clients,ventas,caja,bcos,cats,cbs]=await Promise.all([
         sb("productos","GET",null,"?activo=eq.true&order=categoria,nombre"),
         sb("clientes","GET",null,"?activo=eq.true&order=nombre"),
         sb("ventas","GET",null,"?order=created_at.desc&limit=50"),
         sb("cajas","GET",null,"?order=id.desc&limit=1"),
         sb("bancos","GET",null,"?activo=eq.true&order=nombre"),
-        sb("configuracion_empresa","GET",null,"?limit=1"),
         sb("categorias","GET",null,"?activo=eq.true&order=nombre"),
         sb("combos","GET",null,"?activo=eq.true&order=nombre"),
       ]);
+      // Cargar empresa por separado para no afectar el resto si falla
+      try {
+        const empConf = await sb("configuracion_empresa","GET",null,"?limit=1");
+        if(empConf?.[0]) setEmpresaConfig(empConf[0]);
+      } catch(e){ console.warn("Config empresa no disponible:", e.message); }
 
       const todosPrecios   = await sb("producto_precios","GET",null,"?activo=eq.true&order=orden");
       const todosComp      = await sb("combo_productos","GET",null,"?order=combo_id");
@@ -1013,7 +1017,6 @@ export default function POS({ usuario, onLogout }) {
       setSalesHistory(ventas||[]);
       setCajaInfo(caja?.[0]||null);
       setBancos(bcos||[]);
-      if(empConf?.[0]) setEmpresaConfig(empConf[0]);
 
       // Cargar caja activa del cajero
       if(usuario?.nombre) {
