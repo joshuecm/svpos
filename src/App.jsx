@@ -910,6 +910,8 @@ export default function POS({ usuario, onLogout }) {
 
   // Shortcut de permisos para este usuario
   const puedo = (permiso) => tienePermiso(usuario, permiso);
+  // DEBUG temporal
+  if(typeof window !== 'undefined') window._posDebug = {salesHistory, customer, cajaActual, lastTicket};
 
   const [products,          setProducts]          = useState([]);
   const [customers,         setCustomers]         = useState([]);
@@ -1017,6 +1019,10 @@ export default function POS({ usuario, onLogout }) {
       setCustomer(clients?.[0]||null);
       setSalesHistory((ventas||[]).filter(v=>v&&v.id));
       console.log("salesHistory muestra:", (ventas||[]).slice(0,2));
+      console.log("customers:", (clients||[]).length);
+      console.log("products:", (prods||[]).length);
+      console.log("cajaInfo:", caja?.[0]);
+      console.log("cats:", (cats||[]).length);
       setCajaInfo(caja?.[0]||null);
       setBancos(bcos||[]);
 
