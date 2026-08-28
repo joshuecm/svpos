@@ -847,7 +847,7 @@ function ReimpresionModal({ venta, customers, ivaConfig, onClose }) {
             <div style={{fontSize:11,color:"#94A3B8",letterSpacing:2}}>COMPROBANTE DE VENTA</div>
             <div style={{fontSize:18,fontWeight:700,color:"#1E293B",fontFamily:"Inter,sans-serif"}}>Smart Valion POS</div>
             <div style={{fontSize:11,color:"#475569"}}>{venta.sucursal||"Principal"}</div>
-            <div style={{fontSize:11,color:"#475569"}}>{new Date(venta.created_at).toLocaleString("es-GT")}</div>
+            <div style={{fontSize:11,color:"#475569"}}>{venta?.created_at ? new Date(venta.created_at).toLocaleString("es-GT") : ""}</div>
           </div>
           {[
             {label:"Factura", value:venta.correlativo},
@@ -1014,7 +1014,8 @@ export default function POS({ usuario, onLogout }) {
       setCategoriasBD(cats||[]);
       setCustomers(clients||[]);
       setCustomer(clients?.[0]||null);
-      setSalesHistory(ventas||[]);
+      setSalesHistory((ventas||[]).filter(v=>v&&v.id));
+      console.log("salesHistory muestra:", (ventas||[]).slice(0,2));
       setCajaInfo(caja?.[0]||null);
       setBancos(bcos||[]);
 
@@ -1712,7 +1713,7 @@ export default function POS({ usuario, onLogout }) {
                   <span style={{color:s.anulada?"#DC2626":C.blue,fontWeight:700,fontSize:15}}>{s.correlativo||`#${s.id}`}</span>
                   {s.anulada&&<span style={{background:"#DC2626",color:"#fff",fontSize:10,padding:"1px 8px",borderRadius:20,fontWeight:600}}>ANULADA</span>}
                 </div>
-                <div style={{color:C.textSm,fontSize:12,marginTop:2}}>{new Date(s.created_at).toLocaleString("es-GT")}</div>
+                <div style={{color:C.textSm,fontSize:12,marginTop:2}}>{s.created_at ? new Date(s.created_at).toLocaleString("es-GT") : ""}</div>
                 <div style={{color:C.textMd,fontSize:12,marginTop:2}}>{customers.find(c=>c.id===s.cliente_id)?.nombre||"Mostrador"} · {s.cajero}</div>
                 <div style={{color:C.textSm,fontSize:11,marginTop:1}}>{(s.metodo_pago||"").split("+").map(m=>METODOS[m]||m).join(" + ")}</div>
                 {s.anulada&&s.motivo_anulacion&&<div style={{color:"#DC2626",fontSize:11,marginTop:2}}>Motivo: {s.motivo_anulacion}</div>}
@@ -2001,7 +2002,7 @@ export default function POS({ usuario, onLogout }) {
                   <div key={s.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${C.border}`}}>
                     <div>
                       <div style={{color:C.text,fontSize:13}}>{s.motivo}</div>
-                      <div style={{color:C.textSm,fontSize:11}}>{new Date(s.created_at).toLocaleString("es-GT")}</div>
+                      <div style={{color:C.textSm,fontSize:11}}>{s.created_at ? new Date(s.created_at).toLocaleString("es-GT") : ""}</div>
                     </div>
                     <span style={{color:C.red,fontWeight:700}}>-{fmt(s.monto)}</span>
                   </div>
