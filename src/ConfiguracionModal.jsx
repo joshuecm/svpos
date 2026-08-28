@@ -20,7 +20,7 @@ async function sb(table, method="GET", body=null, query="") {
 }
 
 const IS = {background:"#fff",border:"1.5px solid #E2E8F0",borderRadius:8,padding:"10px 14px",color:"#1E293B",fontSize:14,outline:"none",width:"100%",boxSizing:"border-box"};
-const C  = {blue:"#3B82F6",text:"#1E293B",textMd:"#475569",textSm:"#94A3B8",border:"#E2E8F0",card:"#fff",panel:"#F8FAFC",green:"#16A34A",red:"#DC2626"};
+const CC = {blue:"#3B82F6",text:"#1E293B",textMd:"#475569",textSm:"#94A3B8",border:"#E2E8F0",card:"#fff",panel:"#F8FAFC",green:"#16A34A",red:"#DC2626"};
 
 export default function ConfiguracionModal({ isMobile, onClose, onGuardado }) {
   const [tab,       setTab]       = useState("empresa");
@@ -130,42 +130,42 @@ export default function ConfiguracionModal({ isMobile, onClose, onGuardado }) {
         <div style={{display:"flex",background:"#fff",borderBottom:"1px solid #E2E8F0",flexShrink:0}}>
           {TABS.map(t=>(
             <button key={t.id} onClick={()=>{setTab(t.id);setError("");setSuccess("");setShowForm(false);}}
-              style={{flex:1,padding:"12px 0",border:"none",background:"transparent",color:tab===t.id?C.blue:C.textMd,fontSize:13,fontWeight:tab===t.id?700:400,cursor:"pointer",borderBottom:tab===t.id?`2px solid ${C.blue}`:"2px solid transparent"}}>
+              style={{flex:1,padding:"12px 0",border:"none",background:"transparent",color:tab===t.id?CC.blue:CC.textMd,fontSize:13,fontWeight:tab===t.id?700:400,cursor:"pointer",borderBottom:tab===t.id?`2px solid ${CC.blue}`:"2px solid transparent"}}>
               {t.label}
             </button>
           ))}
         </div>
 
         <div style={{flex:1,overflowY:"auto",padding:20}}>
-          {error&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"8px 14px",color:C.red,fontSize:13,marginBottom:12}}>{error}</div>}
-          {success&&<div style={{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,padding:"8px 14px",color:C.green,fontSize:13,marginBottom:12}}>{success}</div>}
+          {error&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"8px 14px",color:CC.red,fontSize:13,marginBottom:12}}>{error}</div>}
+          {success&&<div style={{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,padding:"8px 14px",color:CC.green,fontSize:13,marginBottom:12}}>{success}</div>}
 
           {/* ── EMPRESA ── */}
           {tab==="empresa"&&(
             <div style={{display:"flex",flexDirection:"column",gap:14}}>
               <div>
-                <label style={{color:C.textMd,fontSize:13,display:"block",marginBottom:6,fontWeight:600}}>Nombre del negocio *</label>
+                <label style={{color:CC.textMd,fontSize:13,display:"block",marginBottom:6,fontWeight:600}}>Nombre del negocio *</label>
                 <input value={empresa.nombre} onChange={e=>setEmpresa(p=>({...p,nombre:e.target.value}))}
                   placeholder="Ej: Supermercado La Economía" style={IS}/>
               </div>
               <div>
-                <label style={{color:C.textMd,fontSize:13,display:"block",marginBottom:6,fontWeight:600}}>NIT</label>
+                <label style={{color:CC.textMd,fontSize:13,display:"block",marginBottom:6,fontWeight:600}}>NIT</label>
                 <input value={empresa.nit||""} onChange={e=>setEmpresa(p=>({...p,nit:e.target.value}))}
                   placeholder="Ej: 123456-7" style={IS}/>
               </div>
               <div>
-                <label style={{color:C.textMd,fontSize:13,display:"block",marginBottom:6,fontWeight:600}}>Mensaje en ticket</label>
+                <label style={{color:CC.textMd,fontSize:13,display:"block",marginBottom:6,fontWeight:600}}>Mensaje en ticket</label>
                 <input value={empresa.mensaje_ticket||""} onChange={e=>setEmpresa(p=>({...p,mensaje_ticket:e.target.value}))}
                   placeholder="Ej: Gracias por su compra" style={IS}/>
               </div>
               <div>
-                <label style={{color:C.textMd,fontSize:13,display:"block",marginBottom:6,fontWeight:600}}>URL del logo</label>
+                <label style={{color:CC.textMd,fontSize:13,display:"block",marginBottom:6,fontWeight:600}}>URL del logo</label>
                 <input value={empresa.logo_url||""} onChange={e=>setEmpresa(p=>({...p,logo_url:e.target.value}))}
                   placeholder="https://..." style={IS}/>
-                <div style={{color:C.textSm,fontSize:11,marginTop:4}}>URL de imagen pública (opcional)</div>
+                <div style={{color:CC.textSm,fontSize:11,marginTop:4}}>URL de imagen pública (opcional)</div>
               </div>
               <button onClick={guardarEmpresa} disabled={saving}
-                style={{padding:"12px 0",borderRadius:8,border:"none",background:C.blue,color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:saving?0.6:1}}>
+                style={{padding:"12px 0",borderRadius:8,border:"none",background:CC.blue,color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:saving?0.6:1}}>
                 {saving?"⏳ Guardando...":"✓ Guardar configuración"}
               </button>
             </div>
@@ -177,26 +177,26 @@ export default function ConfiguracionModal({ isMobile, onClose, onGuardado }) {
               {!showForm&&(
                 <>
                   <button onClick={()=>{setShowForm(true);setEditSuc(null);setFormSuc({nombre:"",serie:"",tipo:"tienda",direccion:"",telefono:"",email:"",tamano_impresora:"80",activa:true});setError("");setSuccess("");}}
-                    style={{width:"100%",padding:"10px 0",borderRadius:8,border:`1.5px dashed ${C.blue}`,background:"#EFF6FF",color:C.blue,fontSize:14,fontWeight:600,cursor:"pointer",marginBottom:14}}>
+                    style={{width:"100%",padding:"10px 0",borderRadius:8,border:`1.5px dashed ${CC.blue}`,background:"#EFF6FF",color:CC.blue,fontSize:14,fontWeight:600,cursor:"pointer",marginBottom:14}}>
                     + Nueva sucursal / bodega
                   </button>
                   {sucursales.map(s=>(
-                    <div key={s.id} style={{background:"#fff",border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:10}}>
+                    <div key={s.id} style={{background:"#fff",border:`1px solid ${CC.border}`,borderRadius:10,padding:14,marginBottom:10}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                         <div>
                           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                            <span style={{color:C.text,fontWeight:700,fontSize:15}}>{s.nombre}</span>
-                            <span style={{background:s.tipo==="bodega"?"#FEF3C7":"#EFF6FF",color:s.tipo==="bodega"?"#D97706":C.blue,fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600}}>
+                            <span style={{color:CC.text,fontWeight:700,fontSize:15}}>{s.nombre}</span>
+                            <span style={{background:s.tipo==="bodega"?"#FEF3C7":"#EFF6FF",color:s.tipo==="bodega"?"#D97706":CC.blue,fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600}}>
                               {s.tipo==="bodega"?"📦 Bodega":"🏪 Tienda"}
                             </span>
-                            {!s.activa&&<span style={{background:"#FEF2F2",color:C.red,fontSize:10,padding:"2px 8px",borderRadius:20}}>Inactiva</span>}
+                            {!s.activa&&<span style={{background:"#FEF2F2",color:CC.red,fontSize:10,padding:"2px 8px",borderRadius:20}}>Inactiva</span>}
                           </div>
-                          <div style={{color:C.textSm,fontSize:12}}>Serie: <strong>{s.serie}</strong>{s.direccion&&` · ${s.direccion}`}</div>
-                          {s.telefono&&<div style={{color:C.textSm,fontSize:12}}>Tel: {s.telefono}</div>}
-                          <div style={{color:C.textSm,fontSize:11,marginTop:2}}>Impresora: {s.tamano_impresora||"80"}mm</div>
+                          <div style={{color:CC.textSm,fontSize:12}}>Serie: <strong>{s.serie}</strong>{s.direccion&&` · ${s.direccion}`}</div>
+                          {s.telefono&&<div style={{color:CC.textSm,fontSize:12}}>Tel: {s.telefono}</div>}
+                          <div style={{color:CC.textSm,fontSize:11,marginTop:2}}>Impresora: {s.tamano_impresora||"80"}mm</div>
                         </div>
                         <button onClick={()=>editarSucursal(s)}
-                          style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${C.border}`,background:"#fff",color:C.textMd,fontSize:12,cursor:"pointer"}}>
+                          style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${CC.border}`,background:"#fff",color:CC.textMd,fontSize:12,cursor:"pointer"}}>
                           ✏️ Editar
                         </button>
                       </div>
@@ -206,23 +206,23 @@ export default function ConfiguracionModal({ isMobile, onClose, onGuardado }) {
               )}
 
               {showForm&&(
-                <div style={{background:"#fff",border:`1px solid ${C.border}`,borderRadius:10,padding:16}}>
-                  <div style={{color:C.text,fontWeight:700,fontSize:14,marginBottom:14}}>
+                <div style={{background:"#fff",border:`1px solid ${CC.border}`,borderRadius:10,padding:16}}>
+                  <div style={{color:CC.text,fontWeight:700,fontSize:14,marginBottom:14}}>
                     {editSuc?"✏️ Editar sucursal":"+ Nueva sucursal"}
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
                     <div style={{gridColumn:"1/-1"}}>
-                      <label style={{color:C.textMd,fontSize:12,display:"block",marginBottom:4}}>Nombre *</label>
+                      <label style={{color:CC.textMd,fontSize:12,display:"block",marginBottom:4}}>Nombre *</label>
                       <input value={formSuc.nombre} onChange={e=>setFormSuc(p=>({...p,nombre:e.target.value}))}
                         placeholder="Ej: Tienda Florida" style={IS}/>
                     </div>
                     <div>
-                      <label style={{color:C.textMd,fontSize:12,display:"block",marginBottom:4}}>Serie * (única)</label>
+                      <label style={{color:CC.textMd,fontSize:12,display:"block",marginBottom:4}}>Serie * (única)</label>
                       <input value={formSuc.serie} onChange={e=>setFormSuc(p=>({...p,serie:e.target.value.toUpperCase()}))}
                         placeholder="Ej: TF" maxLength={5} style={IS}/>
                     </div>
                     <div>
-                      <label style={{color:C.textMd,fontSize:12,display:"block",marginBottom:4}}>Tipo</label>
+                      <label style={{color:CC.textMd,fontSize:12,display:"block",marginBottom:4}}>Tipo</label>
                       <select value={formSuc.tipo} onChange={e=>setFormSuc(p=>({...p,tipo:e.target.value}))}
                         style={{...IS,cursor:"pointer"}}>
                         <option value="tienda">🏪 Tienda</option>
@@ -230,22 +230,22 @@ export default function ConfiguracionModal({ isMobile, onClose, onGuardado }) {
                       </select>
                     </div>
                     <div style={{gridColumn:"1/-1"}}>
-                      <label style={{color:C.textMd,fontSize:12,display:"block",marginBottom:4}}>Dirección</label>
+                      <label style={{color:CC.textMd,fontSize:12,display:"block",marginBottom:4}}>Dirección</label>
                       <input value={formSuc.direccion||""} onChange={e=>setFormSuc(p=>({...p,direccion:e.target.value}))}
                         placeholder="Ej: Av. Petapa 5-10 Zona 12" style={IS}/>
                     </div>
                     <div>
-                      <label style={{color:C.textMd,fontSize:12,display:"block",marginBottom:4}}>Teléfono</label>
+                      <label style={{color:CC.textMd,fontSize:12,display:"block",marginBottom:4}}>Teléfono</label>
                       <input value={formSuc.telefono||""} onChange={e=>setFormSuc(p=>({...p,telefono:e.target.value}))}
                         placeholder="Ej: 2345-6789" style={IS}/>
                     </div>
                     <div>
-                      <label style={{color:C.textMd,fontSize:12,display:"block",marginBottom:4}}>Email</label>
+                      <label style={{color:CC.textMd,fontSize:12,display:"block",marginBottom:4}}>Email</label>
                       <input value={formSuc.email||""} onChange={e=>setFormSuc(p=>({...p,email:e.target.value}))}
                         placeholder="sucursal@negocio.com" style={IS}/>
                     </div>
                     <div>
-                      <label style={{color:C.textMd,fontSize:12,display:"block",marginBottom:4}}>Impresora</label>
+                      <label style={{color:CC.textMd,fontSize:12,display:"block",marginBottom:4}}>Impresora</label>
                       <select value={formSuc.tamano_impresora||"80"} onChange={e=>setFormSuc(p=>({...p,tamano_impresora:e.target.value}))}
                         style={{...IS,cursor:"pointer"}}>
                         <option value="58">58mm (pequeña)</option>
@@ -255,16 +255,16 @@ export default function ConfiguracionModal({ isMobile, onClose, onGuardado }) {
                     <div style={{display:"flex",alignItems:"center",gap:8,paddingTop:20}}>
                       <input type="checkbox" checked={formSuc.activa} onChange={e=>setFormSuc(p=>({...p,activa:e.target.checked}))}
                         style={{width:16,height:16,cursor:"pointer"}}/>
-                      <label style={{color:C.textMd,fontSize:13,cursor:"pointer"}}>Sucursal activa</label>
+                      <label style={{color:CC.textMd,fontSize:13,cursor:"pointer"}}>Sucursal activa</label>
                     </div>
                   </div>
                   <div style={{display:"flex",gap:8}}>
                     <button onClick={()=>{setShowForm(false);setEditSuc(null);setError("");}}
-                      style={{flex:1,padding:10,borderRadius:8,border:`1px solid ${C.border}`,background:"#fff",color:C.textMd,fontSize:14,cursor:"pointer"}}>
+                      style={{flex:1,padding:10,borderRadius:8,border:`1px solid ${CC.border}`,background:"#fff",color:CC.textMd,fontSize:14,cursor:"pointer"}}>
                       Cancelar
                     </button>
                     <button onClick={guardarSucursal} disabled={saving}
-                      style={{flex:2,padding:10,borderRadius:8,border:"none",background:C.blue,color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:saving?0.6:1}}>
+                      style={{flex:2,padding:10,borderRadius:8,border:"none",background:CC.blue,color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:saving?0.6:1}}>
                       {saving?"⏳ Guardando...":"✓ Guardar"}
                     </button>
                   </div>
