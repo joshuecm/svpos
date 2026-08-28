@@ -14,7 +14,7 @@ function Root() {
         const saved = localStorage.getItem("svpos_user");
         if (saved) {
           const u = JSON.parse(saved);
-          limpiarCachePermisos(); // Forzar recarga fresca de permisos
+          limpiarCachePermisos();
           const uCompleto = await cargarUsuarioCompleto(u);
           localStorage.setItem("svpos_user", JSON.stringify(uCompleto));
           setUsuario(uCompleto);
@@ -37,26 +37,7 @@ function Root() {
   );
 
   if (!usuario) return <Login onLogin={handleLogin}/>;
-  return (
-    <ErrorBoundary>
-      <App usuario={usuario} onLogout={handleLogout}/>
-    </ErrorBoundary>
-  );
-}
-
-class ErrorBoundary extends React.Component {
-  constructor(props){ super(props); this.state={error:null}; }
-  static getDerivedStateFromError(e){ return {error:e}; }
-  componentDidCatch(e,info){ console.error("COMPONENTE CON ERROR:", info.componentStack); }
-  render(){
-    if(this.state.error) return(
-      <div style={{padding:40,fontFamily:"monospace",background:"#FEF2F2",minHeight:"100vh"}}>
-        <h2 style={{color:"#DC2626"}}>Error: {this.state.error.message}</h2>
-        <pre style={{fontSize:11,whiteSpace:"pre-wrap",color:"#475569"}}>{this.state.error.stack?.slice(0,500)}</pre>
-      </div>
-    );
-    return this.props.children;
-  }
+  return <App usuario={usuario} onLogout={handleLogout}/>;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(
