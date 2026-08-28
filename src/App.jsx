@@ -655,221 +655,185 @@ function TicketModal({ ticket, bancos, onClose, isMobile }) {
 
 // ─── SETUP WIZARD ─────────────────────────────────────────────────────────────
 function SetupWizard({ onComplete, ivaConfig, isMobile }) {
-  const [paso,    setPaso]    = useState(1);
-  const [empresa, setEmpresa] = useState({nombre:"",nit:"",mensaje_ticket:"Gracias por su compra",tamano_impresora:"80"});
-  const [sucursal,setSucursal]= useState({nombre:"Tienda Principal",serie:"TP",tipo:"tienda",direccion:"",telefono:""});
-  const [iva,     setIva]     = useState({...ivaConfig});
-  const [saving,  setSaving]  = useState(false);
-  const [error,   setError]   = useState("");
-
-  const SB_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
-  const SB_KEY = "sb_publishable_-BLot_F7KegMytm1jJ9jYg_n0SR2Q-q";
-  const sbw = async (table, method="GET", body=null, query="") => {
-    const res = await fetch(`${SB_URL}/rest/v1/${table}${query}`, {
-      method, headers:{"apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`,"Content-Type":"application/json","Prefer":method==="POST"?"return=representation":""},
-      body:body?JSON.stringify(body):null,
-    });
-    if(!res.ok){ const e=await res.text(); throw new Error(e); }
-    const t=await res.text(); return t?JSON.parse(t):null;
+  const [paso,setPaso]=useState(1);
+  const [empresa,setEmpresa]=useState({nombre:"",nit:"",mensaje_ticket:"Gracias por su compra",tamano_impresora:"80"});
+  const [sucursal,setSucursal]=useState({nombre:"Tienda Principal",serie:"TP",tipo:"tienda",direccion:"",telefono:""});
+  const [iva,setIva]=useState({...ivaConfig});
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState("");
+  const SB_URL="https://rztujbaunmeqhgrxugth.supabase.co";
+  const SB_KEY="sb_publishable_-BLot_F7KegMytm1jJ9jYg_n0SR2Q-q";
+  const sbw=async(table,method="GET",body=null,query="")=>{
+    const res=await fetch(`${SB_URL}/rest/v1/${table}${query}`,{method,headers:{"apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`,"Content-Type":"application/json","Prefer":method==="POST"?"return=representation":""},body:body?JSON.stringify(body):null});
+    if(!res.ok){const e=await res.text();throw new Error(e);}
+    const t=await res.text();return t?JSON.parse(t):null;
   };
-
-  const finalizar = async () => {
-    if(!empresa.nombre.trim()){ setError("El nombre del negocio es obligatorio"); setPaso(1); return; }
-    if(!sucursal.serie.trim()){ setError("La serie es obligatoria"); setPaso(2); return; }
-    setSaving(true); setError("");
-    try {
-      const empExiste = await sbw("configuracion_empresa","GET",null,"?limit=1");
-      if(empExiste?.[0]) {
-        await sbw(`configuracion_empresa?id=eq.${empExiste[0].id}`,"PATCH",{
-          nombre:empresa.nombre.trim(), nit:empresa.nit?.trim()||null,
-          mensaje_ticket:empresa.mensaje_ticket?.trim()||null,
-          tamano_impresora:empresa.tamano_impresora||"80",
-        });
-      } else {
-        await sbw("configuracion_empresa","POST",{
-          nombre:empresa.nombre.trim(), nit:empresa.nit?.trim()||null,
-          mensaje_ticket:empresa.mensaje_ticket?.trim()||null,
-          tamano_impresora:empresa.tamano_impresora||"80",
-        });
-      }
-      const sucs = await sbw("sucursales","GET",null,"?order=id&limit=1");
-      if(sucs?.[0]) {
-        await sbw(`sucursales?id=eq.${sucs[0].id}`,"PATCH",{
-          nombre:sucursal.nombre.trim(), serie:sucursal.serie.toUpperCase().trim(),
-          tipo:sucursal.tipo, direccion:sucursal.direccion?.trim()||null,
-          telefono:sucursal.telefono?.trim()||null,
-        });
-      } else {
-        await sbw("sucursales","POST",{
-          nombre:sucursal.nombre.trim(), serie:sucursal.serie.toUpperCase().trim(),
-          tipo:sucursal.tipo, direccion:sucursal.direccion?.trim()||null,
-          telefono:sucursal.telefono?.trim()||null, activa:true,
-        });
-      }
-      onComplete({empresa, iva});
-    } catch(e){ setError("Error: "+e.message); }
+  const finalizar=async()=>{
+    if(!empresa.nombre.trim()){setError("El nombre es obligatorio");setPaso(1);return;}
+    if(!sucursal.serie.trim()){setError("La serie es obligatoria");setPaso(2);return;}
+    setSaving(true);setError("");
+    try{
+      const empEx=await sbw("configuracion_empresa","GET",null,"?limit=1");
+      if(empEx?.[0])await sbw(`configuracion_empresa?id=eq.${empEx[0].id}`,"PATCH",{nombre:empresa.nombre.trim(),nit:empresa.nit?.trim()||null,mensaje_ticket:empresa.mensaje_ticket?.trim()||null,tamano_impresora:empresa.tamano_impresora||"80"});
+      else await sbw("configuracion_empresa","POST",{nombre:empresa.nombre.trim(),nit:empresa.nit?.trim()||null,mensaje_ticket:empresa.mensaje_ticket?.trim()||null,tamano_impresora:empresa.tamano_impresora||"80"});
+      const sucs=await sbw("sucursales","GET",null,"?order=id&limit=1");
+      if(sucs?.[0])await sbw(`sucursales?id=eq.${sucs[0].id}`,"PATCH",{nombre:sucursal.nombre.trim(),serie:sucursal.serie.toUpperCase().trim(),tipo:sucursal.tipo,direccion:sucursal.direccion?.trim()||null,telefono:sucursal.telefono?.trim()||null});
+      else await sbw("sucursales","POST",{nombre:sucursal.nombre.trim(),serie:sucursal.serie.toUpperCase().trim(),tipo:sucursal.tipo,direccion:sucursal.direccion?.trim()||null,telefono:sucursal.telefono?.trim()||null,activa:true});
+      onComplete({empresa,iva});
+    }catch(e){setError("Error: "+e.message);}
     setSaving(false);
   };
-
-  const PASOS = ["Empresa","Sucursal","IVA"];
+  const PASOS=["Empresa","Sucursal","IVA"];
   return(
     <div style={{position:"fixed",inset:0,background:"linear-gradient(135deg,#1E293B 0%,#0F172A 100%)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500}}>
       <div style={{background:"#fff",borderRadius:20,boxShadow:"0 25px 80px rgba(0,0,0,0.4)",width:isMobile?"95vw":"520px",overflow:"hidden"}}>
         <div style={{background:"#3B82F6",padding:"24px 28px"}}>
           <div style={{color:"#fff",fontSize:22,fontWeight:800,marginBottom:4}}>⚡ Smart Valion POS</div>
           <div style={{color:"#BFDBFE",fontSize:14}}>Configuración inicial — {PASOS[paso-1]}</div>
-          <div style={{display:"flex",gap:8,marginTop:16}}>
-            {PASOS.map((p,i)=>(
-              <div key={i} style={{flex:1,height:4,borderRadius:4,background:i<paso?"#fff":"rgba(255,255,255,0.3)",transition:"all 0.3s"}}/>
-            ))}
-          </div>
+          <div style={{display:"flex",gap:8,marginTop:16}}>{PASOS.map((p,i)=><div key={i} style={{flex:1,height:4,borderRadius:4,background:i<paso?"#fff":"rgba(255,255,255,0.3)"}}/>)}</div>
         </div>
         <div style={{padding:28,maxHeight:"70vh",overflowY:"auto"}}>
           {error&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"8px 14px",color:"#DC2626",fontSize:13,marginBottom:16}}>{error}</div>}
-          {paso===1&&(
-            <div>
-              <div style={{color:"#1E293B",fontSize:16,fontWeight:700,marginBottom:4}}>🏢 Datos de tu negocio</div>
-              <div style={{color:"#94A3B8",fontSize:13,marginBottom:20}}>Esta información aparecerá en los tickets de venta</div>
-              <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Nombre del negocio *</label>
-                  <input value={empresa.nombre} onChange={e=>setEmpresa(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Supermercado La Economía" style={IS} autoFocus/></div>
-                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>NIT</label>
-                  <input value={empresa.nit||""} onChange={e=>setEmpresa(p=>({...p,nit:e.target.value}))} placeholder="Ej: 123456-7" style={IS}/></div>
-                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Mensaje en ticket</label>
-                  <input value={empresa.mensaje_ticket||""} onChange={e=>setEmpresa(p=>({...p,mensaje_ticket:e.target.value}))} placeholder="Ej: Gracias por su compra" style={IS}/></div>
-                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Tamaño de impresora</label>
-                  <select value={empresa.tamano_impresora||"80"} onChange={e=>setEmpresa(p=>({...p,tamano_impresora:e.target.value}))} style={{...IS,cursor:"pointer"}}>
-                    <option value="58">58mm — impresora pequeña</option>
-                    <option value="80">80mm — impresora estándar</option>
-                  </select></div>
-              </div>
-              <button onClick={()=>{if(!empresa.nombre.trim()){setError("El nombre es obligatorio");return;}setError("");setPaso(2);}} style={{...BP,width:"100%",padding:14,fontSize:15,marginTop:20}}>Continuar →</button>
+          {paso===1&&(<div>
+            <div style={{color:"#1E293B",fontSize:16,fontWeight:700,marginBottom:4}}>🏢 Datos de tu negocio</div>
+            <div style={{color:"#94A3B8",fontSize:13,marginBottom:20}}>Esta información aparecerá en los tickets de venta</div>
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Nombre del negocio *</label><input value={empresa.nombre} onChange={e=>setEmpresa(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Supermercado La Economía" style={IS} autoFocus/></div>
+              <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>NIT</label><input value={empresa.nit||""} onChange={e=>setEmpresa(p=>({...p,nit:e.target.value}))} placeholder="Ej: 123456-7" style={IS}/></div>
+              <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Mensaje en ticket</label><input value={empresa.mensaje_ticket||""} onChange={e=>setEmpresa(p=>({...p,mensaje_ticket:e.target.value}))} placeholder="Ej: Gracias por su compra" style={IS}/></div>
+              <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Tamaño de impresora</label>
+                <select value={empresa.tamano_impresora||"80"} onChange={e=>setEmpresa(p=>({...p,tamano_impresora:e.target.value}))} style={{...IS,cursor:"pointer"}}>
+                  <option value="58">58mm — pequeña</option><option value="80">80mm — estándar</option>
+                </select></div>
             </div>
-          )}
-          {paso===2&&(
-            <div>
-              <div style={{color:"#1E293B",fontSize:16,fontWeight:700,marginBottom:4}}>🏪 Primera sucursal</div>
-              <div style={{color:"#94A3B8",fontSize:13,marginBottom:20}}>Configura tu primera tienda o bodega</div>
-              <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Nombre *</label>
-                  <input value={sucursal.nombre} onChange={e=>setSucursal(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Tienda Principal" style={IS}/></div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Serie * (única)</label>
-                    <input value={sucursal.serie} onChange={e=>setSucursal(p=>({...p,serie:e.target.value.toUpperCase()}))} placeholder="Ej: TP" maxLength={5} style={IS}/>
-                    <div style={{color:"#94A3B8",fontSize:11,marginTop:4}}>Identifica la sucursal en facturas</div></div>
-                  <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Tipo</label>
-                    <select value={sucursal.tipo} onChange={e=>setSucursal(p=>({...p,tipo:e.target.value}))} style={{...IS,cursor:"pointer"}}>
-                      <option value="tienda">🏪 Tienda</option>
-                      <option value="bodega">📦 Bodega</option>
-                    </select></div>
-                </div>
-                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Dirección</label>
-                  <input value={sucursal.direccion||""} onChange={e=>setSucursal(p=>({...p,direccion:e.target.value}))} placeholder="Ej: Av. Petapa 5-10 Zona 12" style={IS}/></div>
-                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Teléfono</label>
-                  <input value={sucursal.telefono||""} onChange={e=>setSucursal(p=>({...p,telefono:e.target.value}))} placeholder="Ej: 2345-6789" style={IS}/></div>
+            <button onClick={()=>{if(!empresa.nombre.trim()){setError("El nombre es obligatorio");return;}setError("");setPaso(2);}} style={{...BP,width:"100%",padding:14,fontSize:15,marginTop:20}}>Continuar →</button>
+          </div>)}
+          {paso===2&&(<div>
+            <div style={{color:"#1E293B",fontSize:16,fontWeight:700,marginBottom:4}}>🏪 Primera sucursal</div>
+            <div style={{color:"#94A3B8",fontSize:13,marginBottom:20}}>Configura tu primera tienda o bodega</div>
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Nombre *</label><input value={sucursal.nombre} onChange={e=>setSucursal(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Tienda Principal" style={IS}/></div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Serie * (única)</label><input value={sucursal.serie} onChange={e=>setSucursal(p=>({...p,serie:e.target.value.toUpperCase()}))} placeholder="Ej: TP" maxLength={5} style={IS}/><div style={{color:"#94A3B8",fontSize:11,marginTop:4}}>Identifica la sucursal en facturas</div></div>
+                <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Tipo</label><select value={sucursal.tipo} onChange={e=>setSucursal(p=>({...p,tipo:e.target.value}))} style={{...IS,cursor:"pointer"}}><option value="tienda">🏪 Tienda</option><option value="bodega">📦 Bodega</option></select></div>
               </div>
-              <div style={{display:"flex",gap:10,marginTop:20}}>
-                <button onClick={()=>{setError("");setPaso(1);}} style={{...BS,flex:1}}>← Volver</button>
-                <button onClick={()=>{if(!sucursal.serie.trim()){setError("La serie es obligatoria");return;}setError("");setPaso(3);}} style={{...BP,flex:2,padding:14,fontSize:15}}>Continuar →</button>
+              <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Dirección</label><input value={sucursal.direccion||""} onChange={e=>setSucursal(p=>({...p,direccion:e.target.value}))} placeholder="Ej: Av. Petapa 5-10 Zona 12" style={IS}/></div>
+              <div><label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Teléfono</label><input value={sucursal.telefono||""} onChange={e=>setSucursal(p=>({...p,telefono:e.target.value}))} placeholder="Ej: 2345-6789" style={IS}/></div>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:20}}>
+              <button onClick={()=>{setError("");setPaso(1);}} style={{...BS,flex:1}}>← Volver</button>
+              <button onClick={()=>{if(!sucursal.serie.trim()){setError("La serie es obligatoria");return;}setError("");setPaso(3);}} style={{...BP,flex:2,padding:14,fontSize:15}}>Continuar →</button>
+            </div>
+          </div>)}
+          {paso===3&&(<div>
+            <div style={{color:"#1E293B",fontSize:16,fontWeight:700,marginBottom:4}}>💰 Configuración de IVA</div>
+            <div style={{color:"#94A3B8",fontSize:13,marginBottom:20}}>¿Cómo manejas el IVA?</div>
+            <div style={{marginBottom:16}}>
+              <label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:8}}>Porcentaje</label>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <input type="number" min="0" max="100" step="0.1" value={iva.porcentaje} onChange={e=>setIva(p=>({...p,porcentaje:parseFloat(e.target.value)||0}))} style={{...IS,width:90,fontSize:22,fontWeight:700,textAlign:"center"}}/>
+                <span style={{color:"#475569",fontSize:28,fontWeight:700}}>%</span>
+                <div style={{color:"#94A3B8",fontSize:12}}>Guatemala: <strong>12%</strong></div>
               </div>
             </div>
+            <div style={{marginBottom:20}}>
+              {IVA_MODOS.map(modo=>{const sel=iva.modo===modo.id;return(
+                <button key={modo.id} onClick={()=>setIva(p=>({...p,modo:modo.id}))} style={{width:"100%",padding:"12px 14px",marginBottom:8,borderRadius:10,cursor:"pointer",textAlign:"left",border:`2px solid ${sel?"#3B82F6":"#E2E8F0"}`,background:sel?"#EFF6FF":"#F8FAFC"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:16,height:16,borderRadius:"50%",border:`2px solid ${sel?"#3B82F6":"#E2E8F0"}`,background:sel?"#3B82F6":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{sel&&<div style={{width:6,height:6,borderRadius:"50%",background:"#fff"}}/>}</div>
+                    <span style={{color:"#1E293B",fontWeight:700,fontSize:13}}>{modo.label}</span><span style={{color:"#94A3B8",fontSize:12}}> — {modo.sublabel}</span>
+                  </div>
+                </button>
+              );})}
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>{setError("");setPaso(2);}} style={{...BS,flex:1}}>← Volver</button>
+              <button onClick={finalizar} disabled={saving} style={{...BP,flex:2,padding:14,fontSize:15,opacity:saving?0.6:1}}>{saving?"⏳ Configurando...":"✓ Comenzar a usar"}</button>
+            </div>
+          </div>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CONFIG MODAL ─────────────────────────────────────────────────────────────
+function ConfigModal({ ivaConfig, onSave, onClose, isMobile, empresaConfig, onGuardarEmpresa }) {
+  const [tab,setTab]=useState("empresa");
+  const [temp,setTemp]=useState({...ivaConfig});
+  const [emp,setEmp]=useState({...empresaConfig});
+  const [saving,setSaving]=useState(false);
+  const [ok,setOk]=useState("");
+  const mc=(id)=>id==="incluido_simple"?{c:C.green,bg:C.greenBg}:id==="incluido_desglosado"?{c:C.blue,bg:C.blueBg}:{c:C.amber,bg:C.amberBg};
+  const guardar=async()=>{
+    setSaving(true);
+    await onGuardarEmpresa(emp);
+    setOk("✓ Guardado");
+    setTimeout(()=>setOk(""),2000);
+    setSaving(false);
+  };
+  const TABS=[{id:"empresa",label:"🏢 Empresa"},{id:"iva",label:"💰 IVA"}];
+  return(
+    <div style={OV}>
+      <div style={{...MW,width:isMobile?"95vw":"500px",padding:0,overflow:"hidden"}}>
+        <div style={{background:"#1E293B",padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{color:"#fff",fontWeight:700,fontSize:16}}>⚙️ Configuración</div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"#94A3B8",fontSize:22,cursor:"pointer"}}>✕</button>
+        </div>
+        <div style={{display:"flex",background:"#fff",borderBottom:`1px solid ${C.border}`}}>
+          {TABS.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"12px 0",border:"none",background:"transparent",color:tab===t.id?C.blue:C.textMd,fontSize:13,fontWeight:tab===t.id?700:400,cursor:"pointer",borderBottom:tab===t.id?`2px solid ${C.blue}`:"2px solid transparent"}}>{t.label}</button>)}
+        </div>
+        <div style={{padding:20,maxHeight:"70vh",overflowY:"auto"}}>
+          {ok&&<div style={{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,padding:"8px 14px",color:C.green,fontSize:13,marginBottom:12}}>{ok}</div>}
+          {tab==="empresa"&&(
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div><label style={{color:C.textMd,fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Nombre del negocio *</label><input value={emp.nombre||""} onChange={e=>setEmp(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Supermercado La Economía" style={IS}/></div>
+              <div><label style={{color:C.textMd,fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>NIT</label><input value={emp.nit||""} onChange={e=>setEmp(p=>({...p,nit:e.target.value}))} placeholder="Ej: 123456-7" style={IS}/></div>
+              <div><label style={{color:C.textMd,fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Dirección</label><input value={emp.direccion||""} onChange={e=>setEmp(p=>({...p,direccion:e.target.value}))} placeholder="Ej: Av. Petapa 5-10 Zona 12" style={IS}/></div>
+              <div><label style={{color:C.textMd,fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Teléfono</label><input value={emp.telefono||""} onChange={e=>setEmp(p=>({...p,telefono:e.target.value}))} placeholder="Ej: 2345-6789" style={IS}/></div>
+              <div><label style={{color:C.textMd,fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Mensaje en ticket</label><input value={emp.mensaje_ticket||""} onChange={e=>setEmp(p=>({...p,mensaje_ticket:e.target.value}))} placeholder="Ej: Gracias por su compra" style={IS}/></div>
+              <div><label style={{color:C.textMd,fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Tamaño impresora</label>
+                <select value={emp.tamano_impresora||"80"} onChange={e=>setEmp(p=>({...p,tamano_impresora:e.target.value}))} style={{...IS,cursor:"pointer"}}>
+                  <option value="58">58mm — pequeña</option><option value="80">80mm — estándar</option>
+                </select></div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={onClose} style={{...BS,flex:1}}>Cancelar</button>
+                <button onClick={guardar} disabled={saving} style={{...BP,flex:2,opacity:saving?0.6:1}}>{saving?"⏳ Guardando...":"✓ Guardar empresa"}</button>
+              </div>
+            </div>
           )}
-          {paso===3&&(
-            <div>
-              <div style={{color:"#1E293B",fontSize:16,fontWeight:700,marginBottom:4}}>💰 Configuración de IVA</div>
-              <div style={{color:"#94A3B8",fontSize:13,marginBottom:20}}>¿Cómo manejas el IVA en tu negocio?</div>
-              <div style={{marginBottom:16}}>
-                <label style={{color:"#475569",fontSize:13,fontWeight:600,display:"block",marginBottom:8}}>Porcentaje de IVA</label>
+          {tab==="iva"&&(
+            <>
+              <div style={{marginBottom:20}}>
+                <label style={{color:C.textMd,fontSize:13,fontWeight:600,display:"block",marginBottom:8}}>Porcentaje de IVA</label>
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <input type="number" min="0" max="100" step="0.1" value={iva.porcentaje} onChange={e=>setIva(p=>({...p,porcentaje:parseFloat(e.target.value)||0}))} style={{...IS,width:90,fontSize:22,fontWeight:700,textAlign:"center"}}/>
-                  <span style={{color:"#475569",fontSize:28,fontWeight:700}}>%</span>
-                  <div style={{color:"#94A3B8",fontSize:12}}>Guatemala: <strong>12%</strong></div>
+                  <input type="number" min="0" max="100" step="0.1" value={temp.porcentaje} onChange={e=>setTemp(p=>({...p,porcentaje:parseFloat(e.target.value)||0}))} style={{...IS,width:90,fontSize:22,fontWeight:700,textAlign:"center"}}/>
+                  <span style={{color:C.textMd,fontSize:28,fontWeight:700}}>%</span>
+                  <div style={{color:C.textSm,fontSize:12}}>Guatemala: <strong>12%</strong></div>
                 </div>
               </div>
               <div style={{marginBottom:20}}>
-                {IVA_MODOS.map(modo=>{
-                  const sel=iva.modo===modo.id;
-                  return(
-                    <button key={modo.id} onClick={()=>setIva(p=>({...p,modo:modo.id}))} style={{width:"100%",padding:"12px 14px",marginBottom:8,borderRadius:10,cursor:"pointer",textAlign:"left",border:`2px solid ${sel?"#3B82F6":"#E2E8F0"}`,background:sel?"#EFF6FF":"#F8FAFC"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:10}}>
-                        <div style={{width:16,height:16,borderRadius:"50%",border:`2px solid ${sel?"#3B82F6":"#E2E8F0"}`,background:sel?"#3B82F6":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                          {sel&&<div style={{width:6,height:6,borderRadius:"50%",background:"#fff"}}/>}
-                        </div>
-                        <span style={{color:"#1E293B",fontWeight:700,fontSize:13}}>{modo.label}</span>
-                        <span style={{color:"#94A3B8",fontSize:12}}> — {modo.sublabel}</span>
-                      </div>
-                    </button>
-                  );
-                })}
+                <label style={{color:C.textMd,fontSize:13,fontWeight:600,display:"block",marginBottom:10}}>¿Cómo se maneja el IVA?</label>
+                {IVA_MODOS.map(modo=>{const sel=temp.modo===modo.id;const m=mc(modo.id);return(
+                  <button key={modo.id} onClick={()=>setTemp(p=>({...p,modo:modo.id}))} style={{width:"100%",padding:"14px 16px",marginBottom:8,borderRadius:10,cursor:"pointer",textAlign:"left",border:`2px solid ${sel?C.blue:C.border}`,background:sel?C.blueBg:C.panel}}>
+                    <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+                      <div style={{width:18,height:18,borderRadius:"50%",flexShrink:0,marginTop:2,border:`2px solid ${sel?C.blue:C.border}`,background:sel?C.blue:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>{sel&&<div style={{width:8,height:8,borderRadius:"50%",background:"#fff"}}/>}</div>
+                      <div><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:4,alignItems:"center"}}><span style={{color:C.text,fontWeight:700,fontSize:14}}>{modo.label}</span><span style={{color:C.textSm,fontSize:12}}>— {modo.sublabel}</span><span style={{fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,background:m.bg,color:m.c}}>{modo.badge}</span></div></div>
+                    </div>
+                  </button>
+                );})}
               </div>
-              <div style={{display:"flex",gap:10}}>
-                <button onClick={()=>{setError("");setPaso(2);}} style={{...BS,flex:1}}>← Volver</button>
-                <button onClick={finalizar} disabled={saving} style={{...BP,flex:2,padding:14,fontSize:15,opacity:saving?0.6:1}}>
-                  {saving?"⏳ Configurando...":"✓ Comenzar a usar"}
-                </button>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={onClose} style={{...BS,flex:1}}>Cancelar</button>
+                <button onClick={()=>onSave(temp)} style={{...BP,flex:2}}>✓ Guardar IVA</button>
               </div>
-            </div>
+            </>
           )}
         </div>
       </div>
     </div>
   );
 }
-
-// ─── CONFIG IVA MODAL ─────────────────────────────────────────────────────────
-function ConfigModal({ ivaConfig, onSave, onClose, isMobile }) {
-  const [temp, setTemp] = useState({...ivaConfig});
-  const mc = (id) => id==="incluido_simple"?{c:C.green,bg:C.greenBg}:id==="incluido_desglosado"?{c:C.blue,bg:C.blueBg}:{c:C.amber,bg:C.amberBg};
-  return (
-    <div style={OV}>
-      <div style={{...MW,width:isMobile?"95vw":"480px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-          <h2 style={{color:C.text,fontSize:18,fontWeight:700,margin:0}}>⚙️ Configuración de IVA</h2>
-          <button onClick={onClose} style={{background:"none",border:"none",color:C.textSm,fontSize:22,cursor:"pointer",padding:"4px 8px"}}>✕</button>
-        </div>
-        <div style={{marginBottom:20}}>
-          <label style={{color:C.textMd,fontSize:13,fontWeight:600,display:"block",marginBottom:8}}>Porcentaje de IVA</label>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <input type="number" min="0" max="100" step="0.1" value={temp.porcentaje}
-              onChange={e=>setTemp(p=>({...p,porcentaje:parseFloat(e.target.value)||0}))}
-              style={{...IS,width:90,fontSize:22,fontWeight:700,textAlign:"center"}}/>
-            <span style={{color:C.textMd,fontSize:28,fontWeight:700}}>%</span>
-            <div style={{color:C.textSm,fontSize:12}}>Guatemala: <strong>12%</strong></div>
-          </div>
-        </div>
-        <div style={{marginBottom:20}}>
-          <label style={{color:C.textMd,fontSize:13,fontWeight:600,display:"block",marginBottom:10}}>¿Cómo se maneja el IVA?</label>
-          {IVA_MODOS.map(modo=>{
-            const sel=temp.modo===modo.id;
-            const m=mc(modo.id);
-            return(
-              <button key={modo.id} onClick={()=>setTemp(p=>({...p,modo:modo.id}))}
-                style={{width:"100%",padding:"14px 16px",marginBottom:8,borderRadius:10,cursor:"pointer",textAlign:"left",border:`2px solid ${sel?C.blue:C.border}`,background:sel?C.blueBg:C.panel}}>
-                <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
-                  <div style={{width:18,height:18,borderRadius:"50%",flexShrink:0,marginTop:2,border:`2px solid ${sel?C.blue:C.border}`,background:sel?C.blue:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                    {sel&&<div style={{width:8,height:8,borderRadius:"50%",background:"#fff"}}/>}
-                  </div>
-                  <div>
-                    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:4,alignItems:"center"}}>
-                      <span style={{color:C.text,fontWeight:700,fontSize:14}}>{modo.label}</span>
-                      <span style={{color:C.textSm,fontSize:12}}>— {modo.sublabel}</span>
-                      <span style={{fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,background:m.bg,color:m.c}}>{modo.badge}</span>
-                    </div>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={onClose} style={{...BS,flex:1}}>Cancelar</button>
-          <button onClick={()=>onSave(temp)} style={{...BP,flex:2}}>✓ Guardar</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── CUSTOMER MODAL ───────────────────────────────────────────────────────────
 function CustomerModal({ customers, customer, onSelect, onClose, isMobile }) {
   const [search, setSearch] = useState("");
@@ -1084,7 +1048,6 @@ export default function POS({ usuario, onLogout }) {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showTicketModal,   setShowTicketModal]   = useState(false);
   const [showConfigModal,   setShowConfigModal]   = useState(false);
-  const [showWizard,        setShowWizard]        = useState(false);
   const [showBancosModal,   setShowBancosModal]   = useState(false);
   const [showUsuariosModal, setShowUsuariosModal] = useState(false);
   const [showRolesModal,    setShowRolesModal]    = useState(false);
@@ -1094,10 +1057,8 @@ export default function POS({ usuario, onLogout }) {
   const [showCreditosModal,    setShowCreditosModal]    = useState(false);
   const [showProveedoresModal, setShowProveedoresModal] = useState(false);
   const [showInventarioModal,  setShowInventarioModal]  = useState(false);
-  const [empresaConfig, setEmpresaConfig] = useState({
-    nombre:"Smart Valion POS", nit:"", direccion:"", telefono:"",
-    mensaje_ticket:"Gracias por su compra", tamano_impresora:"80",
-  });
+  const [empresaConfig, setEmpresaConfig] = useState({nombre:"Smart Valion POS",nit:"",direccion:"",telefono:"",mensaje_ticket:"Gracias por su compra",tamano_impresora:"80"});
+  const [showWizard, setShowWizard] = useState(false);
   const [cajaActual,           setCajaActual]           = useState(null);
   const [showAperturaCaja,     setShowAperturaCaja]     = useState(false);
   const [showCombosModal,      setShowCombosModal]      = useState(false);
@@ -1184,14 +1145,11 @@ export default function POS({ usuario, onLogout }) {
       setCajaInfo(caja?.[0]||null);
       setBancos(bcos||[]);
 
-      // Cargar config empresa — detectar primer uso
+      // Cargar config empresa
       try {
         const emp = await sb("configuracion_empresa","GET",null,"?limit=1");
-        if(emp?.[0]) {
-          setEmpresaConfig(prev=>({...prev,...emp[0]}));
-        } else if(tienePermiso(usuario,"config_iva")) {
-          setShowWizard(true);
-        }
+        if(emp?.[0]) setEmpresaConfig(prev=>({...prev,...emp[0]}));
+        else if(tienePermiso(usuario,"config_iva")) setShowWizard(true);
       } catch(e){ console.warn("Sin config empresa:", e.message); }
 
       // Cargar caja activa del cajero
@@ -1229,6 +1187,19 @@ export default function POS({ usuario, onLogout }) {
   const notify = (msg,type="success") => {
     setNotification({msg,type});
     setTimeout(()=>setNotification(null),3000);
+  };
+
+  const guardarEmpresa = async (emp) => {
+    try {
+      const existe = await sb("configuracion_empresa","GET",null,"?limit=1");
+      if(existe?.[0]) {
+        await sb(`configuracion_empresa?id=eq.${existe[0].id}`,"PATCH",{nombre:emp.nombre?.trim(),nit:emp.nit?.trim()||null,direccion:emp.direccion?.trim()||null,telefono:emp.telefono?.trim()||null,mensaje_ticket:emp.mensaje_ticket?.trim()||null,tamano_impresora:emp.tamano_impresora||"80"});
+      } else {
+        await sb("configuracion_empresa","POST",{nombre:emp.nombre?.trim(),nit:emp.nit?.trim()||null,direccion:emp.direccion?.trim()||null,telefono:emp.telefono?.trim()||null,mensaje_ticket:emp.mensaje_ticket?.trim()||null,tamano_impresora:emp.tamano_impresora||"80"});
+      }
+      setEmpresaConfig(prev=>({...prev,...emp}));
+      notify("Datos de empresa guardados ✓");
+    } catch(e){ notify("Error: "+e.message,"error"); }
   };
 
   const saveIvaConfig = (temp) => {
@@ -2483,6 +2454,7 @@ export default function POS({ usuario, onLogout }) {
         <ConfigModal
           ivaConfig={ivaConfig} onSave={saveIvaConfig}
           onClose={()=>setShowConfigModal(false)} isMobile={isMobile}
+          empresaConfig={empresaConfig} onGuardarEmpresa={guardarEmpresa}
         />
       )}
       {showTicketModal&&(
