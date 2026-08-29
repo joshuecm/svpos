@@ -19,7 +19,7 @@ async function sb(table, method="GET", body=null, query="") {
   return t ? JSON.parse(t) : null;
 }
 
-// ─── PERMISOS POR DEFECTO (fallback si no hay BD) ────────────────────────────
+// ─── PERMISOS POR DEFECTO (fallback si no hay BD) ───────────────────────────
 const PERMISOS_DEFAULT = {
   super_admin: {
     pos:true, historial_propio:true, historial_global:true,
@@ -129,11 +129,20 @@ export async function cargarUsuarioCompleto(usuario) {
       }
     }
 
+    // Resolver la serie de la sucursal asignada (para el correlativo de facturas)
+    let _sucursalSerie = null;
+    if (u.sucursal_id) {
+      try {
+        const sucs = await sb("sucursales","GET",null,`?id=eq.${u.sucursal_id}&select=serie,nombre`);
+        _sucursalSerie = sucs?.[0]?.serie || null;
+      } catch {}
+    }
+
     if (rolId) {
       const roles = await sb("roles","GET",null,`?id=eq.${rolId}`);
       const rolNombre = roles?.[0]?.nombre;
       const permisos = await cargarPermisosRol(rolId, rolNombre);
-      return { ...u, rol_id:rolId, _permisos:permisos, _rolNombre:rolNombre };
+      return { ...u, rol_id:rolId, _permisos:permisos, _rolNombre:rolNombre, _sucursalSerie };
     }
   } catch(e) { console.error("Error cargando usuario:", e); }
   
