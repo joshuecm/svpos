@@ -2314,6 +2314,9 @@ export default function POS({ usuario, onLogout }) {
           isMobile={isMobile}
         />
       )}
+      {showConfigModal&&(
+        <ConfigModal ivaConfig={ivaConfig} onSave={saveIvaConfig} onClose={()=>setShowConfigModal(false)} isMobile={isMobile}/>
+      )}
       {showUsuariosModal&&puedo("gestion_usuarios")&&(
         <UsuariosModal
           usuarioActual={usuario}
