@@ -970,7 +970,7 @@ export default function POS({ usuario, onLogout }) {
   async function loadAll() {
     setLoading(true);
     try {
-      const [prods,clients,ventas,caja,bcos,cats,cbs]=await Promise.all([
+      const [prodsRaw,clients,ventas,caja,bcos,cats,cbs,stockSuc]=await Promise.all([
         sb("productos","GET",null,"?activo=eq.true&order=categoria,nombre"),
         sb("clientes","GET",null,"?activo=eq.true&order=nombre"),
         sb("ventas","GET",null,"?order=created_at.desc&limit=50"),
@@ -978,7 +978,14 @@ export default function POS({ usuario, onLogout }) {
         sb("bancos","GET",null,"?activo=eq.true&order=nombre"),
         sb("categorias","GET",null,"?activo=eq.true&order=nombre"),
         sb("combos","GET",null,"?activo=eq.true&order=nombre"),
+        usuario?.sucursal_id ? sb("stock_sucursal","GET",null,`?sucursal_id=eq.${usuario.sucursal_id}`) : Promise.resolve(null),
       ]);
+      const stockMap = Object.fromEntries((stockSuc||[]).map(s=>[s.producto_id, parseFloat(s.cantidad)||0]));
+      const prods = (prodsRaw||[]).map(p=>({
+        ...p,
+        stock_global: p.stock,
+        stock: (usuario?.sucursal_id && stockSuc) ? (stockMap[p.id] ?? 0) : p.stock,
+      }));
       // Cargar empresa por separado para no afectar el resto si falla
       try {
         const empConf = await sb("configuracion_empresa","GET",null,"?limit=1");
@@ -1174,12 +1181,15 @@ export default function POS({ usuario, onLogout }) {
       const hayCredito    = pagos.some(p=>p.metodo==="credit");
       const montoCredito  = hayCredito ? parseFloat(pagos.find(p=>p.metodo==="credit")?.monto||0) : 0;
 
+const sucursalId = usuario?.sucursal_id || 1;
+
       const [venta] = await sb("ventas","POST",{
         correlativo, cliente_id:customer?.id||null,
         subtotal:cartBase, impuesto:cartIva, total:cartTotal,
         metodo_pago:metodoResumen, monto_recibido:totalPagado, cambio:0,
         cajero: usuario?.nombre || "Admin",
         sucursal: usuario?.sucursal || "Principal",
+        sucursal_id: sucursalId,
         monto_pagado: hayCredito ? 0 : totalPagado,
         saldo_pendiente: hayCredito ? cartTotal : 0,
       });
@@ -1190,20 +1200,55 @@ export default function POS({ usuario, onLogout }) {
         subtotal:calcLine(item,ivaConfig).total,
       })));
 
+// Consumir lotes PEPS de la sucursal del cajero y actualizar stock_sucursal
+      const consumirLotesPEPS = async (productoId, cantidadVendida) => {
+        let restante = parseFloat(cantidadVendida)||0;
+        if(restante<=0) return;
+        try {
+          const lotes = await sb("detalle_entradas","GET",null,
+            `?producto_id=eq.${productoId}&sucursal_id=eq.${sucursalId}&cantidad_disponible=gt.0&order=created_at.asc`
+          );
+          for(const lote of (lotes||[])) {
+            if(restante<=0) break;
+            const disponible = parseFloat(lote.cantidad_disponible||0);
+            const tomar = Math.min(disponible, restante);
+            if(tomar<=0) continue;
+            await sb(`detalle_entradas?id=eq.${lote.id}`,"PATCH",{cantidad_disponible: disponible - tomar});
+            restante -= tomar;
+          }
+        } catch(e){ console.warn("No se pudieron descontar lotes PEPS:", e.message); }
+        try {
+          const stockRows = await sb("stock_sucursal","GET",null,`?producto_id=eq.${productoId}&sucursal_id=eq.${sucursalId}`);
+          if(stockRows?.length) {
+            await sb(`stock_sucursal?id=eq.${stockRows[0].id}`,"PATCH",{
+              cantidad: (parseFloat(stockRows[0].cantidad)||0) - parseFloat(cantidadVendida)
+            });
+          } else {
+            await sb("stock_sucursal","POST",{producto_id:productoId, sucursal_id:sucursalId, cantidad:-parseFloat(cantidadVendida)});
+          }
+        } catch(e){ console.warn("No se pudo actualizar stock_sucursal:", e.message); }
+      };
+
       // Actualizar stock — productos normales y componentes de combos
       for(const item of cart) {
         if(item._esCombo) {
           // Descontar cada componente del combo
           for(const comp of (item._comp||[])) {
             const prod = products.find(p=>p.id===comp.producto_id);
+            const cantidadComp = parseFloat(comp.cantidad||1)*item.qty;
             if(prod) {
               await sb(`productos?id=eq.${comp.producto_id}`,"PATCH",{
-                stock: Math.max(0, parseFloat(prod.stock||0) - parseFloat(comp.cantidad||1)*item.qty)
+                stock: Math.max(0, parseFloat(prod.stock_global??prod.stock??0) - cantidadComp)
               });
             }
+            await consumirLotesPEPS(comp.producto_id, cantidadComp);
           }
         } else {
-          await sb(`productos?id=eq.${item.id}`,"PATCH",{stock:item.stock-item.qty});
+          const prod = products.find(p=>p.id===item.id);
+          await sb(`productos?id=eq.${item.id}`,"PATCH",{
+            stock: Math.max(0, parseFloat(prod?.stock_global??item.stock_global??item.stock??0) - item.qty)
+          });
+          await consumirLotesPEPS(item.id, item.qty);
         }
       }
 
@@ -1216,7 +1261,11 @@ export default function POS({ usuario, onLogout }) {
         setCustomer(prev=>prev?.id===customer.id?{...prev,saldo_credito:nuevoSaldo}:prev);
       }
 
-      setProducts(prev=>prev.map(p=>{const ic=cart.find(i=>i.id===p.id);return ic?{...p,stock:p.stock-ic.qty}:p;}));
+      setProducts(prev=>prev.map(p=>{
+        const ic=cart.find(i=>i.id===p.id);
+        if(!ic) return p;
+        return {...p, stock:Math.max(0,p.stock-ic.qty), stock_global:Math.max(0,(p.stock_global??p.stock)-ic.qty)};
+      }));
       const ticket={
         correlativo, date:new Date().toLocaleString("es-GT"),
         customer, items:cart.map(item=>({
