@@ -11,6 +11,7 @@ import InventarioModal from "./InventarioModal.jsx";
 import CombosModal from "./CombosModal.jsx";
 import CajaModal, { AperturaCaja } from "./CajaModal.jsx";
 import AnulacionModal from "./AnulacionModal.jsx";
+import SucursalesModal from "./SucursalesModal.jsx";
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://rztujbaunmeqhgrxugth.supabase.co";
@@ -571,7 +572,7 @@ function TicketModal({ ticket, bancos, onClose, isMobile }) {
         <div style={{textAlign:"center",borderBottom:"1px dashed #E2E8F0",paddingBottom:12,marginBottom:12}}>
           <div style={{fontSize:11,color:C.textSm,letterSpacing:2}}>DOCUMENTO INTERNO</div>
           <div style={{fontSize:18,fontWeight:700,color:C.text,fontFamily:"Inter,sans-serif"}}>Smart Valion POS</div>
-          <div style={{fontSize:11,color:C.textMd}}>Sucursal Principal</div>
+          <div style={{fontSize:11,color:C.textMd}}>{ticket.sucursal||"Principal"}</div>
         </div>
         <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
           <span style={{color:C.textMd,fontSize:12}}>Venta #</span>
@@ -929,6 +930,7 @@ export default function POS({ usuario, onLogout }) {
   const [showAbonosModal,   setShowAbonosModal]   = useState(false);
   const [showCreditosModal,    setShowCreditosModal]    = useState(false);
   const [showProveedoresModal, setShowProveedoresModal] = useState(false);
+  const [showSucursalesModal,  setShowSucursalesModal]  = useState(false);
   const [showInventarioModal,  setShowInventarioModal]  = useState(false);
   const [empresaConfig,        setEmpresaConfig]        = useState({nombre:"Smart Valion POS",nit:"",mensaje_ticket:"Gracias por su compra"});
   const [cajaActual,           setCajaActual]           = useState(null);
@@ -1144,7 +1146,9 @@ export default function POS({ usuario, onLogout }) {
       return;
     }
     try {
-      const serie = usuario?.serie_correlativo || "A";
+      const serieCajero    = usuario?.serie_correlativo || "A";
+      const serieSucursal  = usuario?._sucursalSerie || "PR";
+      const serie = `${serieSucursal}-${serieCajero}`;
 
       // ── Correlativo consecutivo
       let correlativo;
@@ -1310,6 +1314,11 @@ export default function POS({ usuario, onLogout }) {
         {puedo("reportes")&&(
           <button onClick={()=>notify("Módulo Reportes — próximamente","info")} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
             <span style={{fontSize:18}}>📈</span>Reportes
+          </button>
+        )}
+        {puedo("sucursales")&&(
+          <button onClick={()=>{setShowSucursalesModal(true);if(!isDesktop)setShowSidebar(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"11px 12px",marginBottom:4,borderRadius:8,border:"none",background:"transparent",color:C.textSm,fontSize:14,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:18}}>🏬</span>Sucursales
           </button>
         )}
         <div style={{borderTop:`1px solid ${C.border}`,margin:"8px 0"}}/>
@@ -2572,6 +2581,9 @@ export default function POS({ usuario, onLogout }) {
       )}
       {showProveedoresModal&&puedo("catalogo_proveedores")&&(
         <ProveedoresModal isMobile={isMobile} onClose={()=>setShowProveedoresModal(false)}/>
+      )}
+      {showSucursalesModal&&puedo("sucursales")&&(
+        <SucursalesModal isMobile={isMobile} onClose={()=>setShowSucursalesModal(false)}/>
       )}
       {showCreditosModal&&puedo("recibir_abonos")&&(
         <CreditosModal isMobile={isMobile} usuario={usuario} onClose={()=>{setShowCreditosModal(false);loadAll();setCajaReloadKey(k=>k+1);}}/>
