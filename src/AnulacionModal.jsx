@@ -36,6 +36,7 @@ export default function AnulacionModal({ venta, usuario, cajaActual, onClose, on
   const [pin,    setPin]    = useState("");
   const [error,  setError]  = useState("");
   const [saving, setSaving] = useState(false);
+    if(!venta) return null;
 
   const esMismoTurno = cajaActual &&
     new Date(venta.created_at) >= new Date(cajaActual.abierta_at.replace(' ','+')) &&
