@@ -180,21 +180,33 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
   const [diasCredito, setDiasCredito] = useState(30);
   const [notas,       setNotas]       = useState("");
   const [lineas,      setLineas]      = useState([{producto_id:"",cantidad:1,costo_unitario:0,tomarUltimoCosto:false}]);
+  const [sucursales,  setSucursales]  = useState([]);
+  const [sucursalId,  setSucursalId]  = useState(usuario?.sucursal_id||"");
+  const [stockSuc,    setStockSuc]    = useState([]);
 
   useEffect(()=>{ loadAll(); },[]);
+
+  useEffect(()=>{
+    if(sucursalId) sb("stock_sucursal","GET",null,`?sucursal_id=eq.${sucursalId}`).then(r=>setStockSuc(r||[])).catch(()=>setStockSuc([]));
+  },[sucursalId]);
 
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [ent,prov,prods] = await Promise.all([
+      const [ent,prov,prods,sucs] = await Promise.all([
         sb("entradas_inventario","GET",null,"?order=created_at.desc&limit=50"),
         sb("proveedores","GET",null,"?activo=eq.true&order=nombre"),
         sb("productos","GET",null,"?activo=eq.true&order=nombre"),
+        sb("sucursales","GET",null,"?activa=eq.true&order=nombre"),
       ]);
-      setEntradas(ent||[]); setProveedores(prov||[]); setProductos(prods||[]);
+      setEntradas(ent||[]); setProveedores(prov||[]); setProductos(prods||[]); setSucursales(sucs||[]);
+      setSucursalId(prev=>prev||usuario?.sucursal_id||sucs?.[0]?.id||"");
     } catch { setError("Error cargando datos"); }
     setLoading(false);
   };
+
+  const stockEnSucursal = (productoId) => stockSuc.find(s=>String(s.producto_id)===String(productoId))?.cantidad ?? 0;
+  const sucursalActual  = sucursales.find(s=>String(s.id)===String(sucursalId));
 
   const proveedorSel = proveedores.find(p=>String(p.id)===String(proveedorId));
   const totalEntrada = lineas.reduce((s,l)=>s+parseFloat(l.cantidad||0)*parseFloat(l.costo_unitario||0),0);
@@ -223,6 +235,7 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
 
   const prepararConfirmacion = () => {
     setError("");
+    if(!sucursalId){ setError("Selecciona la sucursal"); return; }
     if(!proveedorId){ setError("Selecciona el proveedor"); return; }
     if(!numFactura.trim()){ setError("Ingresa el número de factura"); return; }
     if(lineas.some(l=>!l.producto_id)){ setError("Selecciona el producto en todas las líneas"); return; }
@@ -232,14 +245,17 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
       const prod = productos.find(p=>String(p.id)===String(l.producto_id));
       const cantidad = parseFloat(l.cantidad||0);
       const costo = modoAdmin?parseFloat(l.costo_unitario||0):parseFloat(prod?.costo||0);
-      return {prod,cantidad,costo,existAnt:parseFloat(prod?.stock||0),existNueva:parseFloat(prod?.stock||0)+cantidad,subtotal:cantidad*costo};
+      const existAnt = parseFloat(stockEnSucursal(l.producto_id))||0;
+      return {prod,cantidad,costo,existAnt,existNueva:existAnt+cantidad,
+        existGlobalAnt:parseFloat(prod?.stock||0),existGlobalNueva:parseFloat(prod?.stock||0)+cantidad,
+        subtotal:cantidad*costo};
     });
     setPreviewData({
       proveedor:proveedorSel, numFactura:numFactura.trim(), tipoPago,
       diasCredito:parseInt(diasCredito)||30, notas:notas.trim(),
       lineas:preview, total:totalEntrada,
       fecha:new Date().toLocaleString("es-GT"),
-      usuario:usuario?.nombre||"Admin", sucursal:usuario?.sucursal||"Principal",
+      usuario:usuario?.nombre||"Admin", sucursalId, sucursal:sucursalActual?.nombre||usuario?.sucursal||"Principal",
     });
     setShowConfirm(true);
   };
@@ -255,20 +271,29 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
         monto_pagado:tipoPago==="contado"?totalEntrada:0,
         saldo_pendiente:tipoPago==="credito"?totalEntrada:0,
         estado:tipoPago==="contado"?"pagada":"pendiente",
-        usuario:usuario?.nombre||"Admin", sucursal:usuario?.sucursal||"Principal",
+        usuario:usuario?.nombre||"Admin", sucursal:previewData.sucursal, sucursal_id:previewData.sucursalId,
         notas:notas.trim()||null,
       });
       for(const l of previewData.lineas) {
         const costoActual = parseFloat(l.prod?.costo||0);
-        const nuevoCosto = modoAdmin&&(l.existAnt+l.cantidad)>0?((l.existAnt*costoActual)+(l.cantidad*l.costo))/(l.existAnt+l.cantidad):costoActual;
+        // PEPS real: cada entrada es su propio lote, con su propio costo — sin promediar
         await sb("detalle_entradas","POST",{
           entrada_id:entrada.id, producto_id:l.prod.id,
           cantidad:l.cantidad, cantidad_disponible:l.cantidad,
           costo_unitario:l.costo, costo_total:l.cantidad*l.costo,
+          sucursal_id:previewData.sucursalId,
         });
+        // stock_sucursal: acumula el stock de ESTA sucursal
+        const stockRow = stockSuc.find(s=>String(s.producto_id)===String(l.prod.id));
+        if(stockRow){
+          await sb(`stock_sucursal?id=eq.${stockRow.id}`,"PATCH",{cantidad:(parseFloat(stockRow.cantidad)||0)+l.cantidad});
+        } else {
+          await sb("stock_sucursal","POST",{producto_id:l.prod.id,sucursal_id:previewData.sucursalId,cantidad:l.cantidad});
+        }
+        // productos: stock global (suma de todas las sucursales) + último costo conocido
         await sb(`productos?id=eq.${l.prod.id}`,"PATCH",{
-          stock:l.existNueva,
-          costo:modoAdmin?parseFloat(nuevoCosto.toFixed(4)):costoActual,
+          stock:l.existGlobalNueva,
+          costo:modoAdmin?l.costo:costoActual,
         });
       }
       if(tipoPago==="credito"){
@@ -373,6 +398,16 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
               {error&&<div style={{background:C.redBg,border:`1px solid ${C.redBorder}`,borderRadius:8,padding:"8px 14px",color:C.red,fontSize:13,marginBottom:14}}>{error}</div>}
               <div style={{background:C.panel,borderRadius:10,padding:16,marginBottom:16,border:`1px solid ${C.border}`}}>
                 <div style={{color:C.textMd,fontSize:13,fontWeight:600,marginBottom:12}}>📋 Datos de la compra</div>
+                <div style={{marginBottom:12}}>
+                  <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Sucursal que recibe *</label>
+                  {modoAdmin&&sucursales.length>1?(
+                    <select value={sucursalId} onChange={e=>setSucursalId(e.target.value)} style={{...IS,cursor:"pointer"}}>
+                      {sucursales.map(s=>(<option key={s.id} value={s.id}>🏬 {s.nombre}</option>))}
+                    </select>
+                  ):(
+                    <div style={{...IS,background:C.card,color:C.textMd}}>🏬 {sucursalActual?.nombre||"Principal"}</div>
+                  )}
+                </div>
                 <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12,marginBottom:12}}>
                   <div>
                     <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Proveedor *</label>
@@ -430,7 +465,7 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
                           <label style={{color:C.textSm,fontSize:11,display:"block",marginBottom:4}}>Producto *</label>
                           <select value={linea.producto_id} onChange={e=>handleProductoChange(i,e.target.value)} style={{...IS,cursor:"pointer",fontSize:13}}>
                             <option value="">Seleccionar...</option>
-                            {productos.map(p=>(<option key={p.id} value={p.id}>{p.nombre} (Stock: {p.stock})</option>))}
+                            {productos.map(p=>(<option key={p.id} value={p.id}>{p.nombre} (Stock en {sucursalActual?.nombre||"sucursal"}: {stockEnSucursal(p.id)})</option>))}
                           </select>
                         </div>
                         <div>
@@ -454,8 +489,8 @@ export default function InventarioModal({ onClose, isMobile, usuario, modoAdmin=
                       )}
                       {prod&&(
                         <div style={{display:"flex",gap:16,background:C.panel,borderRadius:6,padding:"6px 10px"}}>
-                          <span style={{color:C.textSm,fontSize:11}}>Stock actual: <strong style={{color:C.textMd}}>{prod.stock}</strong></span>
-                          {linea.cantidad>0&&<span style={{color:C.textSm,fontSize:11}}>Después: <strong style={{color:C.green}}>{parseFloat(prod.stock)+parseFloat(linea.cantidad||0)}</strong></span>}
+                          <span style={{color:C.textSm,fontSize:11}}>Stock en {sucursalActual?.nombre||"sucursal"}: <strong style={{color:C.textMd}}>{stockEnSucursal(prod.id)}</strong></span>
+                          {linea.cantidad>0&&<span style={{color:C.textSm,fontSize:11}}>Después: <strong style={{color:C.green}}>{parseFloat(stockEnSucursal(prod.id))+parseFloat(linea.cantidad||0)}</strong></span>}
                         </div>
                       )}
                     </div>
