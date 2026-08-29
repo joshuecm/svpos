@@ -87,19 +87,53 @@ export default function AnulacionModal({ venta, usuario, cajaActual, onClose, on
         motivo_anulacion: motivo,
       });
 
-      // 5. Revertir stock — leer stock actual y sumar cantidad
-      const detalles = await sb("detalle_ventas","GET",null,`?venta_id=eq.${venta.id}`);
-      for(const det of (detalles||[])) {
-        if(!det.producto_id) continue;
-        const prods = await sb("productos","GET",null,`?id=eq.${det.producto_id}&select=id,stock`);
-        if(prods?.[0]) {
-          const stockActual = parseFloat(prods[0].stock||0);
-          const cantidad    = parseFloat(det.cantidad||0);
-          await sb(`productos?id=eq.${det.producto_id}`,"PATCH",{
-            stock: stockActual + cantidad
-          });
-        }
-      }
+            // 5. Revertir stock — global (productos.stock) + por sucursal (lotes PEPS + stock_sucursal)
+            const sucursalId = venta.sucursal_id || 1;
+            const detalles = await sb("detalle_ventas","GET",null,`?venta_id=eq.${venta.id}`);
+            for(const det of (detalles||[])) {
+                      if(!det.producto_id) continue;
+                      const cantidad = parseFloat(det.cantidad||0);
+                      const prods = await sb("productos","GET",null,`?id=eq.${det.producto_id}&select=id,stock`);
+                      if(prods?.[0]) {
+                                  const stockActual = parseFloat(prods[0].stock||0);
+                                  await sb(`productos?id=eq.${det.producto_id}`,"PATCH",{
+                                                stock: stockActual + cantidad
+                                  });
+                      }
+
+                      // Devolver la cantidad a los lotes PEPS de esa sucursal (empezando por el
+                      // último lote consumido, ya que fue el más reciente en descontarse) y
+                      // actualizar stock_sucursal.
+                      let restante = cantidad;
+                      if(restante>0) {
+                                  try {
+                                                const lotes = await sb("detalle_entradas","GET",null,
+                                                                                     `?producto_id=eq.${det.producto_id}&sucursal_id=eq.${sucursalId}&order=created_at.desc`
+                                                                                   );
+                                                for(const lote of (lotes||[])) {
+                                                                if(restante<=0) break;
+                                                                const disponible = parseFloat(lote.cantidad_disponible||0);
+                                                                const original    = parseFloat(lote.cantidad||0);
+                                                                const espacio      = Math.max(0, original - disponible);
+                                                                if(espacio<=0) continue;
+                                                                const devolver = Math.min(espacio, restante);
+                                                                await sb(`detalle_entradas?id=eq.${lote.id}`,"PATCH",{cantidad_disponible: disponible + devolver});
+                                                                restante -= devolver;
+                                                }
+                                  } catch(e){ console.warn("No se pudieron revertir lotes PEPS:", e.message); }
+
+                                  try {
+                                                const stockRows = await sb("stock_sucursal","GET",null,`?producto_id=eq.${det.producto_id}&sucursal_id=eq.${sucursalId}`);
+                                                if(stockRows?.length) {
+                                                                await sb(`stock_sucursal?id=eq.${stockRows[0].id}`,"PATCH",{
+                                                                                  cantidad: (parseFloat(stockRows[0].cantidad)||0) + cantidad
+                                                                });
+                                                } else {
+                                                                await sb("stock_sucursal","POST",{producto_id:det.producto_id, sucursal_id:sucursalId, cantidad});
+                                                }
+                                  } catch(e){ console.warn("No se pudo actualizar stock_sucursal:", e.message); }
+                      }
+            }
 
       // 6. Revertir saldo cliente si era crédito
       if((venta.metodo_pago||"").includes("credit") && venta.cliente_id) {
