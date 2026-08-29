@@ -2547,7 +2547,8 @@ export default function POS({ usuario, onLogout }) {
           </div>
         </div>
       )}
-        <AnulacionModal
+      {ventaAnular&&(
+      <AnulacionModal
           venta={ventaAnular} usuario={usuario} cajaActual={cajaActual} isMobile={isMobile}
           onClose={()=>setVentaAnular(null)}
           onAnulada={(autorizador)=>{
