@@ -37,11 +37,12 @@ const ROLE_COLORS = ["#DC2626","#3B82F6","#7C3AED","#16A34A","#D97706","#0891B2"
 const getRoleColor = (i) => ROLE_COLORS[i % ROLE_COLORS.length];
 const getRoleBg    = (color) => color + "15";
 
-const FORM_EMPTY = {nombre:"",email:"",username:"",pin:"",rol_id:"",rol:"cajero",sucursal:"Principal",serie_correlativo:"A",activo:true};
+const FORM_EMPTY = {nombre:"",email:"",username:"",pin:"",rol_id:"",rol:"cajero",sucursal_id:"",serie_correlativo:"A",activo:true};
 
 export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
-  const [usuarios, setUsuarios] = useState([]);
-  const [roles,    setRoles]    = useState([]);
+  const [usuarios,   setUsuarios]   = useState([]);
+  const [roles,      setRoles]      = useState([]);
+  const [sucursales, setSucursales] = useState([]);
   const [form,     setForm]     = useState(FORM_EMPTY);
   const [editId,   setEditId]   = useState(null);
   const [saving,   setSaving]   = useState(false);
@@ -54,18 +55,22 @@ export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [u, r] = await Promise.all([
+      const [u, r, s] = await Promise.all([
         sb("usuarios","GET",null,"?order=nombre"),
         sb("roles","GET",null,"?activo=eq.true&order=id"),
+        sb("sucursales","GET",null,"?activa=eq.true&order=nombre").catch(()=>[]),
       ]);
       setUsuarios(u||[]);
       setRoles(r||[]);
+      setSucursales(s||[]);
     } catch { setError("Error cargando datos"); }
     setLoading(false);
   };
 
+  const getSucursalNombre = (id) => sucursales.find(s=>String(s.id)===String(id))?.nombre;
+
   const openNew = () => {
-    setForm({...FORM_EMPTY, rol_id: roles[0]?.id||""});
+    setForm({...FORM_EMPTY, rol_id: roles[0]?.id||"", sucursal_id: sucursales[0]?.id||""});
     setEditId(null); setError(""); setTab("form");
   };
 
@@ -73,7 +78,7 @@ export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
     setForm({
       nombre: u.nombre, email: u.email||"", username: u.username||"", pin: u.pin||"",
       rol_id: u.rol_id||"", rol: u.rol||"cajero",
-      sucursal: u.sucursal||"Principal",
+      sucursal_id: u.sucursal_id||sucursales[0]?.id||"",
       serie_correlativo: u.serie_correlativo||"A",
       activo: u.activo,
     });
@@ -102,7 +107,8 @@ export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
         pin:    form.pin,
         rol:    rolNombre,
         rol_id: form.rol_id ? parseInt(form.rol_id) : null,
-        sucursal: form.sucursal,
+        sucursal_id: form.sucursal_id ? parseInt(form.sucursal_id) : null,
+        sucursal: getSucursalNombre(form.sucursal_id) || "Principal",
         serie_correlativo: form.serie_correlativo.toUpperCase(),
         activo: form.activo,
       };
@@ -178,7 +184,7 @@ export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
                         {!u.activo&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,background:C.redBg,color:C.red}}>Inactivo</span>}
                         {u.id===usuarioActual?.id&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,background:C.greenBg,color:C.green}}>Tú</span>}
                       </div>
-                      <div style={{color:C.textSm,fontSize:11}}>{u.sucursal||"Principal"} · Serie: {u.serie_correlativo||"A"}{u.email?` · ${u.email}`:""}</div>
+                      <div style={{color:C.textSm,fontSize:11}}>🏬 {getSucursalNombre(u.sucursal_id)||u.sucursal||"Principal"} · Serie: {u.serie_correlativo||"A"}{u.email?` · ${u.email}`:""}</div>
                     </div>
                     <div style={{display:"flex",gap:6,flexShrink:0}}>
                       <button onClick={()=>openEdit(u)} style={{...BS,padding:"6px 10px",fontSize:12}}>✏️</button>
@@ -226,8 +232,17 @@ export default function UsuariosModal({ usuarioActual, isMobile, onClose }) {
                   </div>
                   <div>
                     <label style={{color:C.textSm,fontSize:12,display:"block",marginBottom:4}}>Sucursal</label>
-                    <input value={form.sucursal} onChange={e=>setForm(p=>({...p,sucursal:e.target.value}))}
-                      placeholder="Principal" style={IS}/>
+                    {sucursales.length===0?(
+                      <div style={{color:C.textSm,fontSize:12,padding:"10px 0"}}>
+                        No hay sucursales creadas — ve a <strong>Sucursales</strong> para crear la primera.
+                      </div>
+                    ):(
+                      <select value={form.sucursal_id} onChange={e=>setForm(p=>({...p,sucursal_id:e.target.value}))} style={IS}>
+                        {sucursales.map(s=>(
+                          <option key={s.id} value={s.id}>{s.nombre} ({s.serie})</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
 
